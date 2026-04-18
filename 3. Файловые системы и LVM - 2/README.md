@@ -11,7 +11,7 @@
 	- восстановиться со снапшота.
 ### Уменьшить том под / до 8G
 
-```bash
+```
 root@test-vm:~# lsblk
 NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 sda                         8:0    0   20G  0 disk
@@ -180,7 +180,7 @@ W: Couldn't identify type of root file system for fsck hook
 ```
 
 ### Выделить том под /var - сделать в mirror
-```bash
+```
 root@test-vm:/# lsblk
 NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 sda                         8:0    0   20G  0 disk
@@ -284,7 +284,7 @@ sdd                         8:48   0    2G  0 disk
 sde                         8:64   0    2G  0 disk
 ```
 ### Выделить том под /home
-```bash
+```
 root@test-vm:~# lvcreate -n LogVol_Home -L 2G /dev/ubuntu-vg
   Logical volume "LogVol_Home" created.
 
@@ -318,7 +318,7 @@ root@test-vm:~# echo "`blkid | grep Home | awk '{print $2}'` \
 Снапшот создан в [[#Работа со снапшотами]]  
 ### Прописать монтирование в fstab. Попробовать с разными опциями и разными файловыми системами (на выбор)
 Создадим на свободном диске новый LV с ФС, а затем пропишем эту ФС в fstab:  
-```bash
+```
 root@test-vm:~# mkdir -p /mnt/video
 
 root@test-vm:~# vgcreate vg_video /dev/sdb
@@ -370,7 +370,7 @@ tmpfs                              tmpfs  392M   12K  392M   1% /run/user/1000
 ```
 ### Работа со снапшотами
 #### Сгенерить файлы в /home/
-```bash
+```
 root@test-vm:~# touch /home/file{1..20}
 
 root@test-vm:~# ls -la /home
@@ -402,7 +402,7 @@ drwxr-x---  6 lusar lusar  4096 Apr  4 16:18 lusar
 
 ```
 #### Снять снапшот
-```bash
+```
 root@test-vm:~# lvcreate -L 100M -s -n home_snap /dev/ubuntu-vg/LogVol_Home
   Logical volume "home_snap" created.
   
@@ -415,7 +415,7 @@ root@test-vm:~# lvs
 
 ```
 #### Удалить часть файлов
-```bash
+```
 root@test-vm:~# rm -f /home/file{11..20}
 
 root@test-vm:~# ls -la /home/
@@ -437,7 +437,7 @@ drwxr-x---  6 lusar lusar  4096 Apr  4 16:18 lusar
 
 ```
 #### Восстановиться со снапшота
-```bash
+```
 root@test-vm:~# umount /home
 
 root@test-vm:~# lvconvert --merge /dev/ubuntu-vg/home_snap 
