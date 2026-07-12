@@ -1,0 +1,6 @@
+---
+
+nginx_setup_http_port: 8080
+nginx_setup_server_name: "{{ ansible_host }}"
+
+# defaults file for nginx_setup
