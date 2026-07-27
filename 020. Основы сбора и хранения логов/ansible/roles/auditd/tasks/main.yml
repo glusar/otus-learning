@@ -14,7 +14,7 @@
     state: present
   notify: Перечитать конфиг auditd
 
-- name: Configure rsyslog for audit.log forwarding
+- name: Настройка rsyslog для auditd
   ansible.builtin.copy:
     dest: /etc/rsyslog.d/50-audit.conf
     mode: "0644"
