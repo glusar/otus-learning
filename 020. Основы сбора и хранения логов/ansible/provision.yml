@@ -1,0 +1,14 @@
+---
+
+- name: Configure web
+  hosts: web
+  become: true
+  roles:
+    - nginx
+    - auditd
+
+- name: Configure log server
+  hosts: log
+  become: true
+  roles:
+    - rsyslog

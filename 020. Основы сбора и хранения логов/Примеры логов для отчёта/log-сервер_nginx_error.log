@@ -1,0 +1,5 @@
+root@log:~# tail -f /var/log/rsyslog/web/nginx_error.log
+Jul 27 19:12:07 web nginx_error: 2026/07/27 19:12:07 [error] 3258#3258: *1 directory index of "/var/www/html/" is forbidden, client: 192.168.56.1, server: _, request: "GET / HTTP/1.1", host: "192.168.56.10"
+Jul 27 19:12:14 web nginx_error: 2026/07/27 19:12:14 [error] 3258#3258: *1 directory index of "/var/www/html/" is forbidden, client: 192.168.56.1, server: _, request: "GET / HTTP/1.1", host: "192.168.56.10"
+Jul 27 19:12:14 web nginx_error: 2026/07/27 19:12:14 [error] 3258#3258: *1 directory index of "/var/www/html/" is forbidden, client: 192.168.56.1, server: _, request: "GET / HTTP/1.1", host: "192.168.56.10"
+Jul 27 19:12:14 web nginx_error: 2026/07/27 19:12:14 [error] 3258#3258: *1 directory index of "/var/www/html/" is forbidden, client: 192.168.56.1, server: _, request: "GET / HTTP/1.1", host: "192.168.56.10"

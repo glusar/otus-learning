@@ -1,0 +1,42 @@
+---
+
+- name: Установка auditd
+  ansible.builtin.apt:
+    name: auditd
+    state: present
+
+- name: Настройка audit
+  ansible.builtin.lineinfile:
+    path: /etc/audit/rules.d/nginx.rules
+    create: true
+    mode: '0640'
+    line: "-w /etc/nginx/nginx.conf -p wa -k nginx_config"
+    state: present
+  notify: Перечитать конфиг auditd
+
+- name: Configure rsyslog for audit.log forwarding
+  ansible.builtin.copy:
+    dest: /etc/rsyslog.d/50-audit.conf
+    mode: "0644"
+    content: |
+      module(load="imfile")
+
+      input(
+          type="imfile"
+          File="/var/log/audit/audit.log"
+          Tag="audit:"
+          Facility="local6"
+          Severity="info"
+          PersistStateInterval="100"
+      )
+
+      local6.* action(
+          type="omfwd"
+          target="{{ hostvars['log']['ansible_host'] }}"
+          port="514"
+          protocol="tcp"
+          queue.type="linkedList"
+          queue.filename="audit_forward"
+          action.resumeRetryCount="-1"
+      )
+  notify: Перезагрузить rsyslog

@@ -1,0 +1,18 @@
+---
+
+- name: Установить таймзону Europe/Moscow
+  community.general.timezone:
+    name: Europe/Moscow
+
+- name: Установить Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Скопировать конфиг
+  ansible.builtin.template:
+    src: templates/nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: '0644'
+  notify: Рестарт Nginx
