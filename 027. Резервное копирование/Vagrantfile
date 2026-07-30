@@ -1,0 +1,59 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-26.04"
+  config.vm.provider :virtualbox do |v|
+        v.memory = 2048
+        v.cpus = 2
+  end
+  
+  config.vm.define "backup_server" do |backup_server|
+    backup_server.vm.hostname = "backup-server"
+    backup_server.vm.network "private_network", ip: "192.168.56.10"
+    backup_server.vm.disk :disk, size: "2GB", name: "backup_disk"
+    backup_server.vm.provision "shell", inline: <<-SHELL
+
+    apt update
+    apt install borgbackup -y
+
+    DISK=($(lsblk -dno NAME,SIZE,MOUNTPOINT | \
+    awk '$2=="2G" && $3=="" {print "/dev/"$1}' | sort))
+
+    # 2. Форматируем в ext4 (идемпотентно — проверяем blkid)
+    for D in "${DISK[@]}"; do
+        if ! blkid "$D" >/dev/null 2>&1; then
+            mkfs.ext4 -F "$D"
+        fi
+    done
+
+    # 3. Точки монтирования
+    mkdir -p /var/backup
+    
+    # 4. Запись в fstab по UUID
+    UUID1=$(blkid -s UUID -o value "${DISK[0]}")
+
+    grep -q "$UUID1" /etc/fstab || \
+        echo "UUID=$UUID1 /var/backup ext4 defaults 0 2" >> /etc/fstab
+
+    # 5. Монтируем по fstab
+    mount -a
+
+    # 6. Доп. действия
+    id -u borg >/dev/null 2>&1 || useradd -m borg
+    chown borg:borg /var/backup/
+    sudo -u borg mkdir -p /home/borg/.ssh
+    sudo -u borg touch /home/borg/.ssh/authorized_keys
+    sudo -u borg chmod 700 /home/borg/.ssh
+    sudo -u borg chmod 600 /home/borg/.ssh/authorized_keys
+
+  SHELL
+  end
+
+  config.vm.define "client" do |client|
+    client.vm.hostname = "client"
+    client.vm.network "private_network", ip: "192.168.56.20"
+    client.vm.provision "shell", inline: <<-SHELL
+
+    apt update
+    apt install borgbackup
+    SHELL
+  end
+end
