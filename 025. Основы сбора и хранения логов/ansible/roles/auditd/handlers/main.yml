@@ -1,0 +1,10 @@
+---
+
+- name: Перечитать конфиг auditd
+  ansible.builtin.command: augenrules --load
+  changed_when: false
+
+- name: Перезагрузить rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    state: restarted

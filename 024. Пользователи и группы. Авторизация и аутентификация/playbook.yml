@@ -1,0 +1,56 @@
+---
+- name: Настройка расписания доступа
+  hosts: all
+  become: true
+  vars:
+    password_user: 'Otus2026'
+
+  tasks:
+    - name: Создаем группу админов
+      ansible.builtin.group:
+        name: admin
+        state: present
+
+    - name: Создаем пользователя otus
+      ansible.builtin.user:
+        name: otus
+        shell: /bin/bash
+        create_home: true
+        password: "{{ password_user | password_hash('sha512') }}"
+
+    - name: Создаем пользователя otusadm
+      ansible.builtin.user:
+        name: otusadm
+        shell: /bin/bash
+        groups: admin
+        append: true
+        create_home: true
+        password: "{{ password_user | password_hash('sha512') }}"
+
+    - name: Добавляем остальных пользователей в группу
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: admin
+        append: true
+        state: present
+      loop:
+        - vagrant
+        - root
+
+    - name: Скопировать скрипт
+      ansible.builtin.copy:
+        src: login.sh
+        dest: /usr/local/bin/login.sh
+        mode: '0755'
+
+    - name: Изменяем конфиг pam
+      ansible.builtin.lineinfile:
+        path: /etc/pam.d/sshd
+        line: "auth required pam_exec.so debug /usr/local/bin/login.sh"
+        insertbefore: BOF
+        regexp: "^auth required pam_exec.so debug /usr/local/bin/login.sh"
+        state: present
+        create: true
+        owner: root
+        group: root
+        mode: '0644'

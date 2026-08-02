@@ -1,0 +1,12 @@
+---
+
+- name: Установить таймзону Europe/Moscow
+  community.general.timezone:
+    name: Europe/Moscow
+
+- name: Скопировать конфиг
+  ansible.builtin.template:
+    src: templates/rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+    mode: '0644'
+  notify: Рестарт Rsyslog

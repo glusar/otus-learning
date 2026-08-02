@@ -1,0 +1,6 @@
+root@log:~# tail -f /var/log/rsyslog/web/nginx_access.log
+Jul 27 19:11:02 web nginx_access: 192.168.56.1 - - [27/Jul/2026:19:11:02 +0400] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+Jul 27 19:11:29 web nginx_access: 192.168.56.1 - - [27/Jul/2026:19:11:29 +0400] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+Jul 27 19:11:29 web nginx_access: 192.168.56.1 - - [27/Jul/2026:19:11:29 +0400] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+Jul 27 19:11:30 web nginx_access: 192.168.56.1 - - [27/Jul/2026:19:11:30 +0400] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+
