@@ -1,7 +1,0 @@
----
-
-- name: Рестарт Rsyslog
-  ansible.builtin.systemd_service:
-    name: rsyslog
-    state: restarted
-    enabled: true
