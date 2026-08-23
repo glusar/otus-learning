@@ -1,0 +1,95 @@
+---
+- name: Configure PXE
+  hosts: all
+  become: true
+  tasks:
+    - name: Stop and disable UFW firewall
+      community.general.ufw:
+        state: disabled
+      become: true
+
+    - name: Disable systemd-resolved
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        state: stopped
+        enabled: false
+
+    - name: Edit resolv.conf
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        content: "nameserver 8.8.8.8\n"
+        mode: '0644'
+
+    - name: Install a list of packages
+      ansible.builtin.apt:
+        pkg:
+          - dnsmasq
+          - apache2
+
+    - name: Copy dnsmasq conf
+      ansible.builtin.copy:
+        src: pxe.conf
+        dest: /etc/dnsmasq.d/pxe.conf
+        mode: '0644'
+
+    - name: Create a directory
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /srv/tftp
+        - /srv/images
+        - /srv/ks
+
+    - name: Download tarball
+      ansible.builtin.unarchive:
+        src: https://cdimage.ubuntu.com/ubuntu-server/noble/daily-live/current/noble-netboot-amd64.tar.gz
+        dest: /srv/tftp
+        remote_src: true
+
+    - name: Download iso
+      ansible.builtin.get_url:
+        url: https://cdimage.ubuntu.com/ubuntu-server/noble/daily-live/current/noble-live-server-amd64.iso
+        dest: /srv/images
+        mode: '0644'
+
+    - name: Copy apache conf
+      ansible.builtin.copy:
+        src: ks-server.conf
+        dest: /etc/apache2/sites-available/ks-server.conf
+        mode: '0644'
+
+    - name: Copy pxe conf
+      ansible.builtin.copy:
+        src: pxelinux-default
+        dest: /srv/tftp/amd64/pxelinux.cfg/default
+        mode: '0644'
+
+    - name: Copy user-data
+      ansible.builtin.copy:
+        src: user-data
+        dest: /srv/ks/user-data
+        mode: '0644'
+
+    - name: Create meta-data
+      ansible.builtin.file:
+        path: /srv/ks/meta-data
+        state: touch
+        mode: '0644'
+
+    - name: Enable ks-server.conf
+      ansible.builtin.command: a2ensite ks-server.conf
+      changed_when: false
+
+    - name: Restart dnsmasq
+      ansible.builtin.systemd_service:
+        name: dnsmasq
+        state: restarted
+        enabled: true
+
+    - name: Restart apache
+      ansible.builtin.systemd_service:
+        name: apache2
+        state: restarted
+        enabled: true
