@@ -1,0 +1,120 @@
+---
+- name: Configure homelab network
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Set up NAT on inetRouter
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      with_items:
+        - { src: "templates/iptables_rules_inetRouter.ipv4", dest: "/etc/iptables_rules.ipv4", mode: "0644" }
+        - { src: "templates/iptables_restore_inetRouter", dest: "/etc/network/if-pre-up.d/iptables", mode: "0755" }
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Set up NAT on inetRouter2
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      with_items:
+        - { src: "templates/iptables_rules_inetRouter2.ipv4", dest: "/etc/iptables_rules.ipv4", mode: "0644" }
+        - { src: "templates/iptables_restore_inetRouter2", dest: "/etc/network/if-pre-up.d/iptables", mode: "0755" }
+      when: (ansible_facts['hostname'] == "inetRouter2")
+
+    - name: Set up forward packages across routers
+      ansible.posix.sysctl:
+        name: net.ipv4.conf.all.forwarding
+        value: '1'
+        state: present
+      when: "'routers' in group_names"
+
+    - name: Disable default route
+      ansible.builtin.template:
+        src: templates/00-installer-config.yaml
+        dest: /etc/netplan/00-installer-config.yaml
+        owner: root
+        group: root
+        mode: "0600"
+      when: (ansible_facts['hostname'] != "inetRouter")
+
+    - name: Configure static routes
+      ansible.builtin.template:
+        src: "templates/99-ansible-routes_{{ ansible_facts['hostname'] }}.yaml"
+        dest: /etc/netplan/99-ansible-routes.yaml
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Copy public key to inetRouter
+      ansible.posix.authorized_key:
+        user: root
+        state: present
+        key: "{{ lookup('file', 'templates/inetRouter_key.pub') }}"
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Copy private key to centralRouter
+      ansible.builtin.copy:
+        src: templates/inetRouter_key
+        dest: /root/.ssh/inetRouter_key
+        owner: root
+        group: root
+        mode: '0600'
+      when: (ansible_facts['hostname'] == "centralRouter")
+
+    - name: Install knockd
+      ansible.builtin.apt:
+        name: knockd
+        state: present
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Install nmap
+      ansible.builtin.apt:
+        name: nmap
+        state: present
+      when: (ansible_facts['hostname'] == "centralRouter")
+
+    - name: Install nginx on centralServer
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+      when: (ansible_facts['hostname'] == "centralServer")
+
+    - name: Copy knockd configuration
+      ansible.builtin.copy:
+        src: templates/knockd.conf
+        dest: /etc/knockd.conf
+        owner: root
+        group: root
+        mode: '0644'
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Copy knockd environment file
+      ansible.builtin.copy:
+        src: templates/knockd
+        dest: /etc/default/knockd
+        owner: root
+        group: root
+        mode: '0644'
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Enable and start knockd
+      ansible.builtin.systemd_service:
+        name: knockd
+        enabled: true
+        state: started
+      when: (ansible_facts['hostname'] == "inetRouter")
+
+    - name: Apply netplan
+      ansible.builtin.command: netplan apply
+      changed_when: false
+
+    - name: Restart all hosts
+      ansible.builtin.reboot:
+        reboot_timeout: 600
