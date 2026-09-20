@@ -1,0 +1,49 @@
+---
+- name: VPN
+  hosts: all
+  become: true
+  vars_files:
+    - default/main.yml
+  tasks:
+    - name: Generate key
+      ansible.builtin.command: "openvpn --genkey secret /etc/openvpn/static.key"
+      register: openvpn_output
+      changed_when: openvpn_output.rc != 0
+
+    - name: Openvpn configure
+      ansible.builtin.template:
+        src: "templates/{{ ansible_facts['hostname'] }}.conf.j2"
+        dest: /etc/openvpn/server.conf
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Fetch static key to localhost
+      ansible.builtin.fetch:
+        src: /etc/openvpn/static.key
+        dest: /tmp/fetched_file.txt
+        flat: true
+      when: (ansible_facts['hostname'] == "server")
+
+    - name: Copy static key to client
+      ansible.builtin.copy:
+        src: /tmp/fetched_file.txt
+        dest: /etc/openvpn/static.key
+        owner: root
+        group: root
+        mode: "0644"
+      when: (ansible_facts['hostname'] == "client")
+
+    - name: Copy systemd unit
+      ansible.builtin.copy:
+        src: templates/openvpn.service
+        dest: /etc/systemd/system/openvpn@.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable and start Openvpn
+      ansible.builtin.systemd:
+        name: openvpn@server
+        enabled: true
+        state: restarted
