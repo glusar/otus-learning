@@ -1,0 +1,143 @@
+---
+- name: Basic configuration
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - bind
+          - bind-utils
+          - vim
+        update_cache: true
+
+    - name: Copy transfer key to all servers and clients
+      ansible.builtin.copy:
+        src: named.zonetransfer.key
+        dest: /etc/named.zonetransfer.key
+        owner: root
+        group: named
+        mode: '0644'
+
+    - name: Start and enable chronyd
+      ansible.builtin.service:
+        name: chronyd
+        state: restarted
+        enabled: true
+
+
+- name: Configure ns01
+  hosts: ns01
+  become: true
+
+  tasks:
+    - name: Copy named.conf
+      ansible.builtin.copy:
+        src: master-named.conf
+        dest: /etc/named.conf
+        owner: root
+        group: named
+        mode: '0640'
+
+    - name: Copy zone configuration files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: /etc/named/
+        owner: root
+        group: named
+        mode: '0660'
+      with_items:
+        - named.ddns.lab
+        - named.dns.lab
+        - named.dns.lab.client
+        - named.dns.lab.rev
+        - named.newdns.lab
+
+    - name: Copy resolv.conf
+      ansible.builtin.template:
+        src: servers-resolv.conf.j2
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Set /etc/named permissions
+      ansible.builtin.file:
+        path: /etc/named
+        owner: root
+        group: named
+        mode: '0670'
+
+    - name: Ensure named is running and enabled
+      ansible.builtin.service:
+        name: named
+        state: restarted
+        enabled: true
+
+
+- name: Configure ns02
+  hosts: ns02
+  become: true
+
+  tasks:
+    - name: Copy named.conf
+      ansible.builtin.copy:
+        src: slave-named.conf
+        dest: /etc/named.conf
+        owner: root
+        group: named
+        mode: '0640'
+
+    - name: Copy resolv.conf
+      ansible.builtin.template:
+        src: servers-resolv.conf.j2
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Set /etc/named permissions
+      ansible.builtin.file:
+        path: /etc/named
+        owner: root
+        group: named
+        mode: '0670'
+
+    - name: Ensure named is running and enabled
+      ansible.builtin.service:
+        name: named
+        state: restarted
+        enabled: true
+
+
+- name: Configure clients
+  hosts:
+    - client
+    - client2
+  become: true
+
+  tasks:
+    - name: Copy resolv.conf to clients
+      ansible.builtin.copy:
+        src: client-resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy rndc.conf
+      ansible.builtin.copy:
+        src: rndc.conf
+        dest: /home/vagrant/rndc.conf
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Copy motd to clients
+      ansible.builtin.copy:
+        src: client-motd
+        dest: /etc/motd
+        owner: root
+        group: root
+        mode: '0644'
