@@ -17,3 +17,7 @@
 ![](../_attachments/vlan_network_scheme.png)
 
 Для создания машин и запуска плейбука нужно выполнить:  `vagrant up`  
+
+
+Пример обрыва соединения между centralRouter и inetRouter:  
+![](../_attachments/vlan_network_ping.png)
