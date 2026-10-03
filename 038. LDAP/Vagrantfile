@@ -1,0 +1,40 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "almalinux/9"
+
+  boxes = [
+    {
+      :name => "ipa.otus.lan",
+      :ip => "192.168.57.10",
+      :cpus => 2,
+      :memory => 8192
+    },
+    {
+      :name => "client1.otus.lan",
+      :ip => "192.168.57.11",
+      :cpus => 1,
+      :memory => 1024
+    },
+    {
+      :name => "client2.otus.lan",
+      :ip => "192.168.57.12",
+      :cpus => 1,
+      :memory => 1024
+    }
+  ]
+
+  boxes.each do |opts|
+    config.vm.define opts[:name] do |machine|
+
+      machine.vm.hostname = opts[:name]
+
+      machine.vm.network "private_network",
+        ip: opts[:ip]
+
+      machine.vm.provider :virtualbox do |v|
+        v.cpus = opts[:cpus]
+        v.memory = opts[:memory]
+      end
+
+    end
+  end
+end

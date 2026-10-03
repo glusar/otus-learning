@@ -1,0 +1,50 @@
+- name: Base set up
+  hosts: all
+  # Выполнять действия от root-пользователя
+  become: true
+  tasks:
+    # Установка текстового редактора Vim и chrony
+    - name: Install softs
+      ansible.builtin.dnf:
+        name:
+          - vim
+          - chrony
+        state: present
+        update_cache: true
+
+    # Отключение SElinux из автозагрузки
+    # Будет применено после перезагрузки
+    - name: Disable SElinux
+      ansible.posix.selinux:
+        state: disabled
+
+    # Отключение SElinux до перезагрузки
+    - name: Disable SElinux now
+      ansible.builtin.command: setenforce 0
+      changed_when: false
+
+    # Установка временной зоны Европа/Москва
+    - name: Set up timezone
+      community.general.timezone:
+        name: "Europe/Moscow"
+
+    # Копирование файла /etc/hosts c правами root:root 0644
+    - name: Change /etc/hosts
+      ansible.builtin.template:
+        src: hosts.j2
+        dest: /etc/hosts
+        owner: root
+        group: root
+        mode: "0644"
+
+    # Установка клиента Freeipa
+    - name: Install module ipa-client
+      ansible.builtin.dnf:
+        name:
+          - freeipa-client
+        state: present
+        update_cache: true
+
+    # Запуск скрипта добавления хоста к серверу
+    - name: Add host to ipa-server
+      ansible.builtin.shell: echo -e "yes\nyes" | ipa-client-install --mkhomedir --domain=OTUS.LAN --server=ipa.otus.lan --no-ntp -p admin -w admin123
