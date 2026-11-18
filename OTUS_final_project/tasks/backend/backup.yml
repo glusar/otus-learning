@@ -1,0 +1,260 @@
+---
+- name: Install the backup client utilities
+  ansible.builtin.apt:
+    name: [borgbackup, rsync, socat]
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the private backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop:
+    - /etc/otus-backup
+    - /var/lib/otus-backup
+
+- name: Install the backup CA certificate
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/ca.crt
+    content: "{{ vault_backup_ca_certificate }}"
+    mode: '0644'
+
+- name: Store the backup client certificate and private key
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/tls.pem
+    content: "{{ vault_backup_client_pems[inventory_hostname] }}"
+    mode: '0600'
+  no_log: true
+  diff: false
+
+- name: Store the Borg passphrase
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/passphrase
+    content: "{{ vault_backup_passphrase }}\n"
+    mode: '0600'
+  no_log: true
+  diff: false
+
+- name: Install the TLS transport for Borg
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/otus-borg-transport
+    mode: '0755'
+    content: |
+      #!/bin/sh
+      exec /usr/bin/socat -t 120 -T 180 - "OPENSSL:{{ backup_receiver_ip }}:{{ backup_borg_port }},connect-timeout=8,verify=1,commonname=otus-borg-server,cafile=/etc/otus-backup/ca.crt,cert=/etc/otus-backup/tls.pem"
+
+- name: Install the Borg client wrapper
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/otus-borg
+    mode: '0755'
+    content: |
+      #!/bin/sh
+      export BORG_RSH=/usr/local/sbin/otus-borg-transport
+      export BORG_PASSCOMMAND='/usr/bin/cat /etc/otus-backup/passphrase'
+      export BORG_LOCK_WAIT=30
+      exec /usr/bin/borg "$@"
+
+- name: Generate restricted keys for pausing and resuming the peer
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -q
+      - -t
+      - ed25519
+      - -N
+      - ""
+      - -f
+      - "/etc/otus-backup/peer-{{ item }}"
+    creates: "/etc/otus-backup/peer-{{ item }}"
+  loop: [pause, resume]
+
+- name: Read the restricted public keys
+  ansible.builtin.slurp:
+    src: "/etc/otus-backup/peer-{{ item }}.pub"
+  loop: [pause, resume]
+  register: backup_peer_keys
+
+- name: Prepare the peer root SSH directory
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop: "{{ groups['backends'] }}"
+  delegate_to: "{{ item }}"
+
+- name: Allow only pause and resume from the other backend
+  ansible.builtin.blockinfile:
+    path: /root/.ssh/authorized_keys
+    create: true
+    owner: root
+    group: root
+    mode: '0600'
+    marker: "# {mark} OTUS backup {{ inventory_hostname }}"
+    block: |
+      restrict,from="{{ internal_ip }}",command="/usr/bin/systemctl restart otus-nextcloud-backup-pause.service" {{ backup_peer_keys.results[0].content | b64decode | trim }}
+      restrict,from="{{ internal_ip }}",command="/usr/bin/systemctl stop otus-nextcloud-backup-pause.service" {{ backup_peer_keys.results[1].content | b64decode | trim }}
+  delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+
+- name: Read the peer SSH host key through the trusted Ansible connection
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+  register: backup_peer_host_key
+
+- name: Pin the peer SSH host key
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/known_hosts
+    content: |
+      {{ hostvars[(groups['backends'] | reject('equalto', inventory_hostname) | first)].internal_ip }} {{ backup_peer_host_key.content | b64decode | trim }}
+    mode: '0600'
+
+- name: Prepare the peer backup configuration directory
+  ansible.builtin.file:
+    path: /etc/otus-backup
+    state: directory
+    mode: '0700'
+  delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+
+- name: Read the local SSH host key for the surviving peer
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  register: backup_local_host_key
+
+- name: Refresh the peer pin after replacing this VM
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/known_hosts
+    content: "{{ internal_ip }} {{ backup_local_host_key.content | b64decode | trim }}\n"
+    mode: '0600'
+  delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+
+- name: Check whether the peer already has restricted backup keys
+  ansible.builtin.stat:
+    path: /etc/otus-backup/peer-resume.pub
+    get_checksum: false
+  delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+  register: backup_existing_peer
+
+- name: Restore access from the surviving peer after replacing this VM
+  when: backup_existing_peer.stat.exists
+  block:
+    - name: Read the surviving peer public keys
+      ansible.builtin.slurp:
+        src: "/etc/otus-backup/peer-{{ item }}.pub"
+      loop: [pause, resume]
+      delegate_to: "{{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+      register: backup_surviving_keys
+
+    - name: Authorize the surviving peer restricted commands
+      ansible.builtin.blockinfile:
+        path: /root/.ssh/authorized_keys
+        create: true
+        owner: root
+        group: root
+        mode: '0600'
+        marker: "# {mark} OTUS backup {{ (groups['backends'] | reject('equalto', inventory_hostname) | first) }}"
+        block: |
+          restrict,from="{{ hostvars[(groups['backends'] | reject('equalto', inventory_hostname) | first)].internal_ip }}",command="/usr/bin/systemctl restart otus-nextcloud-backup-pause.service" {{ backup_surviving_keys.results[0].content | b64decode | trim }}
+          restrict,from="{{ hostvars[(groups['backends'] | reject('equalto', inventory_hostname) | first)].internal_ip }}",command="/usr/bin/systemctl stop otus-nextcloud-backup-pause.service" {{ backup_surviving_keys.results[1].content | b64decode | trim }}
+
+- name: Configure restricted SSH access to the peer
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/ssh_config
+    mode: '0600'
+    content: |
+      Host backup-peer
+          HostName {{ hostvars[(groups['backends'] | reject('equalto', inventory_hostname) | first)].internal_ip }}
+          User root
+          RequestTTY no
+          BatchMode yes
+          IdentitiesOnly yes
+          StrictHostKeyChecking yes
+          UserKnownHostsFile /etc/otus-backup/known_hosts
+          HostKeyAlgorithms ssh-ed25519
+          ConnectTimeout 8
+          ServerAliveInterval 5
+          ServerAliveCountMax 3
+
+- name: Create the cron override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/otus-nextcloud-cron.service.d
+    state: directory
+    mode: '0755'
+
+- name: Store the Galera readiness query
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/ready.sql
+    mode: '0644'
+    content: |
+      SELECT COUNT(*) FROM information_schema.GLOBAL_STATUS
+      WHERE (VARIABLE_NAME='wsrep_cluster_status' AND VARIABLE_VALUE='Primary')
+         OR (VARIABLE_NAME='wsrep_local_state_comment' AND VARIABLE_VALUE='Synced')
+         OR (VARIABLE_NAME='wsrep_ready' AND VARIABLE_VALUE='ON');
+
+- name: Skip scheduled cron while the local application is paused
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-nextcloud-cron.service.d/otus-backup.conf
+    mode: '0644'
+    content: |
+      [Unit]
+      ConditionPathExists=!/run/otus-nextcloud-backup-paused
+
+- name: Store the success marker for the standard textfile mtime metric
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/success.prom
+    content: |
+      # Last successful Nextcloud Borg backup. See node_textfile_mtime_seconds.
+    mode: '0644'
+
+- name: Install the native backup services
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: '0644'
+  loop:
+    - otus-nextcloud-backup-pause.service
+    - otus-nextcloud-backup-snapshot.service
+    - otus-nextcloud-backup.service
+
+- name: Configure the daily backup timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-nextcloud-backup.timer
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Daily Nextcloud backup on the storage owner
+
+      [Timer]
+      OnCalendar=*-*-* 15:00:00 {{ project_timezone }}
+      AccuracySec=1s
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Validate the backup service definitions
+  ansible.builtin.command: >-
+    systemd-analyze verify
+    /etc/systemd/system/otus-nextcloud-backup-pause.service
+    /etc/systemd/system/otus-nextcloud-backup-snapshot.service
+    /etc/systemd/system/otus-nextcloud-backup.service
+    /etc/systemd/system/otus-nextcloud-backup.timer
+  changed_when: false
+
+- name: Load the backup service definitions
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Apply PHP configuration before enabling the backup timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Save the backup timer placement and ordering
+  ansible.builtin.template:
+    src: backup-timer.crm.j2
+    dest: /etc/corosync/otus-backup.crm
+    mode: '0644'

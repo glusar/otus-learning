@@ -1,0 +1,20 @@
+---
+- name: Resolve the application to the proxy's internal HTTPS address
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^\S+\s+{{ project_domain | regex_escape }}(?:\s|$)'
+    line: "{{ hostvars[groups['proxies'][0]].internal_ip }} {{ project_domain }}"
+
+- name: Trust the self-signed application certificate on lab guests
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/.secrets/nextcloud.crt"
+    dest: /usr/local/share/ca-certificates/otus-nextcloud.crt
+    owner: root
+    group: root
+    mode: '0644'
+  register: nextcloud_guest_ca
+
+- name: Refresh changed guest trust stores
+  ansible.builtin.command: update-ca-certificates
+  when: nextcloud_guest_ca.changed
+  changed_when: true

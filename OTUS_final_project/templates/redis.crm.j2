@@ -1,0 +1,9 @@
+primitive p_redis ocf:heartbeat:redis \
+    params config=/etc/redis/otus.conf user=redis rundir=/run/redis-otus \
+    op start interval=0 timeout=120s \
+    op stop interval=0 timeout=120s \
+    op monitor interval=10s timeout=30s \
+    meta resource-stickiness=1000
+
+colocation c_redis_on_storage inf: p_redis p_storage_vip
+order o_storage_before_redis Mandatory: p_storage_vip:start p_redis:start

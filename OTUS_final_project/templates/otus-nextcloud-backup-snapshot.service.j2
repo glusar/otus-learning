@@ -1,0 +1,20 @@
+[Unit]
+Description=Copy quiesced Nextcloud files and dump MariaDB
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint {{ project_storage_path }} --source /dev/drbd0 --types ext4
+ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/otus-backup/staging/data /var/lib/otus-backup/staging/app
+ExecStart=/usr/bin/systemctl restart otus-nextcloud-backup-pause.service
+ExecStart=/usr/bin/ssh -F /etc/otus-backup/ssh_config -i /etc/otus-backup/peer-pause backup-peer
+ExecStart=/bin/sh -ec 'test "$$(/usr/bin/mariadb -BN < /etc/otus-backup/ready.sql)" = 3'
+ExecStart=/usr/bin/rsync -aHAX --numeric-ids --delete --one-file-system {{ project_nfs_export }}/ /var/lib/otus-backup/staging/data/
+ExecStart=/usr/bin/rsync -aHAX --numeric-ids --delete --one-file-system {{ nextcloud_path }}/ /var/lib/otus-backup/staging/app/
+ExecStart=/bin/sh -ec 'exec /usr/bin/mariadb-dump --protocol=socket --single-transaction --quick --default-character-set=utf8mb4 --hex-blob --routines --events --triggers {{ nextcloud_database }} > /var/lib/otus-backup/staging/nextcloud.sql'
+ExecStart=/usr/bin/ssh -F /etc/otus-backup/ssh_config -i /etc/otus-backup/peer-resume backup-peer
+ExecStart=/usr/bin/systemctl stop otus-nextcloud-backup-pause.service
+ExecStopPost=-/usr/bin/ssh -F /etc/otus-backup/ssh_config -i /etc/otus-backup/peer-resume backup-peer
+ExecStopPost=/usr/bin/systemctl stop otus-nextcloud-backup-pause.service
+TimeoutStartSec=10min
+TimeoutStopSec=150s

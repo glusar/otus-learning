@@ -1,0 +1,76 @@
+---
+- name: Install the local ntfy package
+  ansible.builtin.apt:
+    deb: "{{ external_package_cache }}/{{ ntfy_deb }}"
+    install_recommends: false
+    policy_rc_d: 101
+
+- name: Create the ntfy state directory
+  ansible.builtin.file:
+    path: /var/lib/ntfy
+    state: directory
+    owner: ntfy
+    group: ntfy
+    mode: '0750'
+
+- name: Configure a private ntfy topic with read access for the browser
+  ansible.builtin.copy:
+    dest: /etc/ntfy/server.yml
+    owner: root
+    group: ntfy
+    mode: '0640'
+    content: |
+      base-url: "{{ ntfy_web_url }}"
+      listen-http: "{{ internal_ip }}:{{ ntfy_http_port }}"
+      behind-proxy: true
+      cache-file: /var/lib/ntfy/cache.db
+      cache-duration: 168h
+      auth-file: /var/lib/ntfy/auth.db
+      auth-default-access: deny-all
+      auth-users:
+        - "alertmanager:{{ vault_ntfy_publisher_hash }}:user"
+      auth-access:
+        - "*:{{ ntfy_topic }}:ro"
+        - "alertmanager:{{ ntfy_topic }}:wo"
+      auth-tokens:
+        - "alertmanager:{{ vault_ntfy_publisher_token }}:Alertmanager webhook"
+      enable-signup: false
+      enable-login: false
+  no_log: true
+  diff: false
+  register: ntfy_config
+
+- name: Create the ntfy service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/ntfy.service.d
+    state: directory
+    mode: '0755'
+
+- name: Require the firewall before ntfy starts
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ntfy.service.d/otus.conf
+    mode: '0644'
+    content: |
+      [Unit]
+      Requires=otus-monitoring-firewall.service
+      After=network-online.target otus-monitoring-firewall.service
+      Wants=network-online.target
+  register: ntfy_override
+
+- name: Enable the ntfy service
+  ansible.builtin.systemd_service:
+    name: ntfy
+    enabled: true
+    daemon_reload: "{{ ntfy_override.changed }}"
+    state: "{{ 'restarted' if ntfy_config.changed or ntfy_override.changed else 'started' }}"
+
+- name: Store the ntfy publisher token for Alertmanager
+  ansible.builtin.copy:
+    dest: /etc/prometheus/ntfy-publisher-token
+    content: "{{ vault_ntfy_publisher_token }}\n"
+    owner: root
+    group: prometheus
+    mode: '0640'
+  no_log: true
+  diff: false
+  notify: Restart Alertmanager

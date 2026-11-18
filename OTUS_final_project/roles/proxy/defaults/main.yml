@@ -1,0 +1,7 @@
+---
+proxy_dmz_interface: eth0
+proxy_internal_interface: eth1
+logging_proxy_files:
+  - {path: /var/log/nginx/access.log, tag: nginx-access, severity: info}
+  - {path: /var/log/nginx/error.log, tag: nginx-error, severity: error}
+logging_file_sources: "{{ logging_proxy_files }}"

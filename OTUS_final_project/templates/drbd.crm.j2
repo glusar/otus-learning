@@ -1,0 +1,16 @@
+primitive p_drbd_{{ drbd_resource }} ocf:linbit:drbd \
+    params drbd_resource={{ drbd_resource }} \
+        remove_master_score_if_peer_primary=unexpected \
+        fail_promote_early_if_peer_primary=true \
+        unfence_if_all_uptodate=true \
+    op start interval=0 timeout=240s \
+    op stop interval=0 timeout=100s \
+    op promote interval=0 timeout=120s \
+    op demote interval=0 timeout=90s \
+    op monitor interval=15s timeout=20s role=Promoted \
+    op monitor interval=30s timeout=20s role=Unpromoted \
+    meta resource-stickiness=1000
+
+clone cl_drbd_{{ drbd_resource }} p_drbd_{{ drbd_resource }} \
+    meta promotable=true promoted-max=1 promoted-node-max=1 \
+        clone-max=2 clone-node-max=1 notify=true interleave=true

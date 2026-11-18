@@ -1,0 +1,13 @@
+[Unit]
+Description=Pause local Nextcloud writers during a backup snapshot
+
+[Service]
+Type=exec
+ExecStartPre=/usr/bin/touch /run/otus-nextcloud-backup-paused
+ExecStartPre=/usr/bin/systemctl stop apache2.service php8.3-fpm.service otus-nextcloud-cron.service
+ExecStart=/usr/bin/sleep infinity
+ExecStopPost=/usr/bin/rm -f /run/otus-nextcloud-backup-paused
+ExecStopPost=/usr/bin/systemctl start php8.3-fpm.service apache2.service
+TimeoutStartSec=120s
+TimeoutStopSec=120s
+RuntimeMaxSec=15min

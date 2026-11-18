@@ -1,0 +1,23 @@
+---
+- name: Apply changes through a rolling database restart
+  ansible.builtin.systemd_service:
+    name: mariadb
+    enabled: true
+    state: >-
+      {{ 'restarted' if (galera_configuration.changed or galera_unit.changed)
+         and not (otus_initialize | default(false) | bool and inventory_hostname == groups['backends'][0])
+         else 'started' }}
+
+- name: Wait for the database node to be synced and ready
+  ansible.builtin.command: >-
+    mariadb --batch --skip-column-names -e
+    "SHOW GLOBAL STATUS WHERE Variable_name IN ('wsrep_cluster_status','wsrep_local_state_comment','wsrep_ready')"
+  register: galera_node_ready
+  changed_when: false
+  retries: 120
+  delay: 3
+  until:
+    - galera_node_ready.rc == 0
+    - "galera_node_ready.stdout is search('wsrep_cluster_status\\s+Primary')"
+    - "galera_node_ready.stdout is search('wsrep_local_state_comment\\s+Synced')"
+    - "galera_node_ready.stdout is search('wsrep_ready\\s+ON')"

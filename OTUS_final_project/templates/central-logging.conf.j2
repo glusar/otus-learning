@@ -1,0 +1,50 @@
+# Managed by Ansible. The default Ubuntu rules still write local syslog.
+{% if inventory_hostname in groups['monitoring'] %}
+module(load="imrelp")
+
+template(name="OtusLogPath" type="list") {
+    constant(value="{{ logging_directory }}/")
+    property(name="$.otus_host" securePath="replace")
+    constant(value=".log")
+}
+
+ruleset(name="otus_store") {
+    action(type="omfile" dynaFile="OtusLogPath" template="RSYSLOG_FileFormat"
+           fileOwner="syslog" fileGroup="adm" fileCreateMode="0640")
+}
+
+ruleset(name="otus_receive") {
+{% for sender in groups['nextcloud'] | difference(groups['monitoring']) | sort %}
+    if $fromhost-ip == "{{ hostvars[sender].internal_ip }}" then {
+        set $.otus_host = "{{ sender }}";
+        call otus_store
+        stop
+    }
+{% endfor %}
+}
+
+input(type="imrelp" address="{{ internal_ip }}" port="{{ logging_relp_port }}" ruleset="otus_receive")
+set $.otus_host = "{{ inventory_hostname }}";
+call otus_store
+{% else %}
+module(load="omrelp")
+module(load="imfile" mode="inotify")
+
+ruleset(name="otus_forward") {
+    action(type="omrelp"
+           target="{{ hostvars[groups['monitoring'][0]].internal_ip }}" port="{{ logging_relp_port }}"
+           template="RSYSLOG_SyslogProtocol23Format" timeout="5"
+           action.resumeRetryCount="-1" action.resumeInterval="5"
+           queue.type="Disk" queue.filename="otus-forward" queue.maxDiskSpace="128m"
+           queue.maxFileSize="4m" queue.size="100000" queue.checkpointInterval="100"
+           queue.saveOnShutdown="on" queue.timeoutEnqueue="0")
+}
+
+{% for source in logging_file_sources %}
+input(type="imfile" File="{{ source.path }}" Tag="{{ source.tag }}:"
+      Facility="local5" Severity="{{ source.severity }}" Ruleset="otus_forward"
+      PersistStateInterval="10" reopenOnTruncate="on")
+{% endfor %}
+
+call otus_forward
+{% endif %}

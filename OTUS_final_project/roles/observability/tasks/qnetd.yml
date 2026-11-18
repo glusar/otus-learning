@@ -1,0 +1,24 @@
+---
+- name: Install QNetd
+  ansible.builtin.apt:
+    name: corosync-qnetd
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    policy_rc_d: 101
+
+- name: Listen on the internal address without TLS
+  ansible.builtin.copy:
+    dest: /etc/default/corosync-qnetd
+    content: |
+      COROSYNC_QNETD_OPTIONS="-l {{ internal_ip }} -s off"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart QNetd
+
+- name: Enable QNetd
+  ansible.builtin.systemd_service:
+    name: corosync-qnetd
+    enabled: true
+    state: started

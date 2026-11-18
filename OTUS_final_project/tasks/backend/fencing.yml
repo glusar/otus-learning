@@ -1,0 +1,20 @@
+---
+- name: Read the current cluster properties
+  ansible.builtin.command: crm configure show
+  register: cluster_configuration
+  changed_when: false
+  check_mode: false
+
+- name: Set quorum policy and watchdog fencing timeouts
+  ansible.builtin.command: >-
+    crm configure property
+    stonith-enabled=true
+    no-quorum-policy=stop
+    stonith-watchdog-timeout=90s
+    stonith-timeout=120s
+  when: >-
+    'stonith-enabled=true' not in cluster_configuration.stdout or
+    'no-quorum-policy=stop' not in cluster_configuration.stdout or
+    'stonith-watchdog-timeout=90s' not in cluster_configuration.stdout or
+    'stonith-timeout=120s' not in cluster_configuration.stdout
+  changed_when: true

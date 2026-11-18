@@ -1,0 +1,59 @@
+---
+- name: Install Corosync and the quorum client
+  ansible.builtin.apt:
+    name:
+      - corosync
+      - corosync-qdevice
+      - pacemaker
+      - crmsh
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    policy_rc_d: 101
+
+- name: Generate the shared Corosync key on the controller
+  ansible.builtin.shell: umask 077; openssl rand -out {{ (playbook_dir ~ '/.secrets/corosync-authkey') | quote }} 256
+  args:
+    creates: "{{ playbook_dir }}/.secrets/corosync-authkey"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Install the shared Corosync key
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/.secrets/corosync-authkey"
+    dest: /etc/corosync/authkey
+    owner: root
+    group: root
+    mode: '0400'
+  no_log: true
+  notify:
+    - Restart Corosync
+    - Restart QDevice
+
+- name: Configure cluster membership and QDevice
+  ansible.builtin.template:
+    src: corosync.conf.j2
+    dest: /etc/corosync/corosync.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/corosync -t -c %s
+  notify:
+    - Restart Corosync
+    - Restart QDevice
+
+- name: Apply cluster configuration before starting the services
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable Corosync
+  ansible.builtin.systemd_service:
+    name: corosync
+    enabled: true
+    state: started
+
+- name: Enable QDevice
+  ansible.builtin.systemd_service:
+    name: corosync-qdevice
+    enabled: true
+    state: started

@@ -1,0 +1,62 @@
+---
+# The OCF agent reads requirepass literally, without unquoting it.
+- name: Require a Vault password compatible with the Redis agent
+  ansible.builtin.assert:
+    that:
+      - vault_redis_password is defined
+      - vault_redis_password is string
+      - vault_redis_password is match('^[A-Za-z0-9_-]+$')
+    fail_msg: Set vault_redis_password in Vault to letters, digits, underscores or hyphens.
+  no_log: true
+
+- name: Install Redis without starting it
+  tags: redis_prepare
+  ansible.builtin.apt:
+    name:
+      - redis-server
+      - redis-tools
+      - resource-agents-extra
+    state: present
+    policy_rc_d: 101
+
+- name: Stop and mask the packaged Redis service
+  tags: redis_prepare
+  ansible.builtin.systemd_service:
+    name: redis-server
+    state: stopped
+    enabled: false
+    masked: true
+
+- name: Keep the Redis group ID identical on both backends
+  ansible.builtin.group:
+    name: redis
+    gid: "{{ redis_gid }}"
+    system: true
+  tags: redis_prepare
+
+- name: Keep the Redis user ID identical on both backends
+  ansible.builtin.user:
+    name: redis
+    uid: "{{ redis_uid }}"
+    group: redis
+    system: true
+    create_home: false
+  tags: redis_prepare
+
+- name: Keep the local configuration directory accessible to Redis
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    owner: redis
+    group: redis
+  tags: redis_prepare
+
+- name: Write the Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/otus.conf
+    owner: root
+    group: redis
+    mode: '0640'
+  no_log: true
+

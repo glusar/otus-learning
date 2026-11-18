@@ -1,0 +1,65 @@
+---
+- name: Configure the Nextcloud background service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-nextcloud-cron.service
+    content: |
+      [Unit]
+      Description=Nextcloud background jobs
+      PartOf=otus-nextcloud-cron.timer
+      RequiresMountsFor={{ nextcloud_data_path }}
+      [Service]
+      Type=oneshot
+      User=www-data
+      Group=www-data
+      ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint {{ nextcloud_data_path }} --types nfs4
+      ExecStart=/usr/bin/php8.3 -f {{ nextcloud_path }}/cron.php
+      TimeoutStartSec=30min
+      TimeoutStopSec=60s
+      KillMode=control-group
+    owner: root
+    group: root
+    mode: '0644'
+  register: nextcloud_cron_service
+
+- name: Configure the five-minute background timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-nextcloud-cron.timer
+    content: |
+      [Unit]
+      Description=Nextcloud background job schedule owned by Pacemaker
+      [Timer]
+      OnActiveSec=30s
+      OnUnitInactiveSec=5min
+      AccuracySec=15s
+      Unit=otus-nextcloud-cron.service
+      [Install]
+      WantedBy=timers.target
+    owner: root
+    group: root
+    mode: '0644'
+  register: nextcloud_cron_timer
+
+- name: Validate changed scheduler definitions before loading them
+  ansible.builtin.command: >-
+    systemd-analyze verify /etc/systemd/system/otus-nextcloud-cron.service
+    /etc/systemd/system/otus-nextcloud-cron.timer
+  when: nextcloud_cron_service.changed or nextcloud_cron_timer.changed
+  changed_when: false
+
+- name: Reload the changed scheduler definitions
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: nextcloud_cron_service.changed or nextcloud_cron_timer.changed
+
+- name: Disable scheduler startup outside Pacemaker
+  ansible.builtin.systemd_service:
+    name: otus-nextcloud-cron.timer
+    enabled: false
+
+- name: Save the scheduler placement and ordering
+  ansible.builtin.template:
+    src: nextcloud-cron.crm.j2
+    dest: /etc/corosync/otus-nextcloud-cron.crm
+    owner: root
+    group: root
+    mode: '0644'

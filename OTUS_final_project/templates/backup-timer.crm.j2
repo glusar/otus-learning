@@ -1,0 +1,7 @@
+primitive p_nextcloud_backup systemd:otus-nextcloud-backup.timer \
+    op start interval=0 timeout=60s \
+    op stop interval=0 timeout=75s \
+    op monitor interval=30s timeout=30s
+
+colocation c_nextcloud_backup_on_cron inf: p_nextcloud_backup p_nextcloud_cron
+order o_cron_before_nextcloud_backup Mandatory: p_nextcloud_cron:start p_nextcloud_backup:start

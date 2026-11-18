@@ -1,0 +1,64 @@
+groups:
+  - name: otus-availability
+    rules:
+      - alert: NextcloudHTTPSDown
+        expr: probe_success{job="nextcloud-https"} == 0 or up{job="nextcloud-https"} == 0
+        for: 45s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nextcloud: HTTPS login probe failed"
+      - alert: NextcloudCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="nextcloud-https"} - time() < 14 * 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nextcloud certificate expires within 14 days"
+      - alert: StorageEndpointDown
+        expr: probe_success{job="storage-tcp"} == 0 or up{job="storage-tcp"} == 0
+        for: 45s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint unavailable: {{ $labels.instance }}"
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node metrics unavailable: {{ $labels.instance }}"
+  - name: otus-capacity
+    rules:
+      - alert: NodeDiskSpaceLow
+        expr: node_filesystem_avail_bytes{mountpoint=~"/|/srv/ncdata|/var/lib/mysql"} / node_filesystem_size_bytes < 0.15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low: {{ $labels.instance }} {{ $labels.mountpoint }}"
+      - alert: NodeMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory low: {{ $labels.instance }}"
+  - name: otus-backup
+    rules:
+      - alert: NextcloudBackupStale
+        expr: time() - (max(node_textfile_mtime_seconds{file=~"(.*/)?otus-backup.prom"}) or vector(0)) > 26 * 3600
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nextcloud has no successful Borg backup within 26 hours"
+      - alert: NextcloudBackupJobFailed
+        expr: node_systemd_unit_state{name="otus-nextcloud-backup.service",state="failed"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The latest Nextcloud backup job failed"
+          description: "Check journalctl -u otus-nextcloud-backup.service on the storage owner."

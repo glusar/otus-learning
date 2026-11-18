@@ -1,0 +1,276 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="otus-network" name="1. Сеть">
+    <mxGraphModel dx="1200" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="PC" value="ПК администратора&lt;br/&gt;192.168.1.100" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="390" y="35" width="300" height="70" />
+        </mxCell>
+        <mxCell id="LAN" value="Домашняя LAN&lt;br/&gt;192.168.1.0/24" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="390" y="150" width="300" height="70" />
+        </mxCell>
+        <mxCell id="Router" value="Роутер&lt;br/&gt;192.168.1.1" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="50" y="150" width="240" height="70" />
+        </mxCell>
+        <mxCell id="PVE" value="Proxmox&lt;br/&gt;vmbr0 · 192.168.1.101&lt;br/&gt;Маршрутизация и SNAT" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="360" y="265" width="360" height="90" />
+        </mxCell>
+        <mxCell id="DMZ" value="vmbr1 · DMZ 172.16.10.0/24&lt;br/&gt;Шлюз 172.16.10.1 на Proxmox" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="350" y="400" width="380" height="80" />
+        </mxCell>
+        <mxCell id="Proxy" value="proxy · 172.16.10.10 / 10.20.0.10&lt;br/&gt;SSH ProxyJump, Nginx, nftables" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="350" y="525" width="380" height="80" />
+        </mxCell>
+        <mxCell id="Internal" value="vmbr2 · 10.20.0.0/24&lt;br/&gt;Шлюз 10.20.0.10 на proxy" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="350" y="650" width="380" height="80" />
+        </mxCell>
+        <mxCell id="B1" value="backend1&lt;br/&gt;10.20.0.11" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="90" y="800" width="260" height="75" />
+        </mxCell>
+        <mxCell id="B2" value="backend2&lt;br/&gt;10.20.0.12" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="410" y="800" width="260" height="75" />
+        </mxCell>
+        <mxCell id="Obs" value="observability&lt;br/&gt;10.20.0.20" style="rounded=1;whiteSpace=wrap;html=1;fontSize=15;spacing=10;strokeWidth=1.5;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="730" y="800" width="260" height="75" />
+        </mxCell>
+        <mxCell id="link-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="PC" target="LAN">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="LAN" target="Router">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="LAN" target="PVE">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="PVE" target="DMZ">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="DMZ" target="Proxy">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="Proxy" target="Internal">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="Internal" target="B1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="Internal" target="B2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="link-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;startArrow=none;strokeColor=#64748b;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="Internal" target="Obs">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="services" name="2. Работа сервисов">
+    <mxGraphModel dx="1700" dy="1270" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1270" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="user" value="Пользователь&lt;br/&gt;nextcloud.otus.lan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="590" y="20" width="340" height="70" />
+        </mxCell>
+        <mxCell id="pve" value="Proxmox · один физический сервер" style="swimlane;html=1;startSize=42;horizontal=1;rounded=0;fillColor=#ffffff;swimlaneFillColor=#ffffff;strokeColor=#64748b;fontColor=#1e293b;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="20" y="115" width="1660" height="1080" />
+        </mxCell>
+        <mxCell id="proxy" value="proxy · 172.16.10.10 / 10.20.0.10" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="pve">
+          <mxGeometry as="geometry" x="520" y="65" width="530" height="145" />
+        </mxCell>
+        <mxCell id="nginx" value="Nginx&lt;br/&gt;HTTPS и балансировка HTTP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="proxy">
+          <mxGeometry as="geometry" x="30" y="60" width="470" height="65" />
+        </mxCell>
+        <mxCell id="b1" value="backend1 · 10.20.0.11 · активное хранилище" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="pve">
+          <mxGeometry as="geometry" x="35" y="270" width="575" height="745" />
+        </mxCell>
+        <mxCell id="b2" value="backend2 · 10.20.0.12" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="pve">
+          <mxGeometry as="geometry" x="690" y="270" width="410" height="745" />
+        </mxCell>
+        <mxCell id="obs" value="observability · 10.20.0.20" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="pve">
+          <mxGeometry as="geometry" x="1180" y="270" width="440" height="745" />
+        </mxCell>
+        <mxCell id="app1" value="Apache → PHP-FPM → Nextcloud" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="30" y="65" width="515" height="70" />
+        </mxCell>
+        <mxCell id="db1" value="MariaDB / Galera&lt;br/&gt;Локальная база · доступна для записи" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b2350;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="30" y="190" width="255" height="100" />
+        </mxCell>
+        <mxCell id="drbd1" value="DRBD Primary&lt;br/&gt;Диск scsi2 · 4 ГиБ" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#422006;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="285" y="350" width="260" height="90" />
+        </mxCell>
+        <mxCell id="fs" value="ext4 · /srv/ncdata&lt;br/&gt;nextcloud/ — файлы · redis/ — AOF" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#422006;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="30" y="485" width="515" height="80" />
+        </mxCell>
+        <mxCell id="vip" value="VIP · 10.20.0.100&lt;br/&gt;NFSv4 и Redis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#173b17;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="30" y="610" width="255" height="95" />
+        </mxCell>
+        <mxCell id="jobs" value="Таймеры systemd&lt;br/&gt;Задания Nextcloud и бэкап" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#173b17;fontSize=16;spacing=8;" vertex="1" parent="b1">
+          <mxGeometry as="geometry" x="325" y="610" width="220" height="95" />
+        </mxCell>
+        <mxCell id="app2" value="Apache → PHP-FPM → Nextcloud" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="b2">
+          <mxGeometry as="geometry" x="25" y="65" width="360" height="70" />
+        </mxCell>
+        <mxCell id="db2" value="MariaDB / Galera&lt;br/&gt;Локальная база · доступна для записи" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b2350;fontSize=16;spacing=8;" vertex="1" parent="b2">
+          <mxGeometry as="geometry" x="25" y="190" width="360" height="100" />
+        </mxCell>
+        <mxCell id="drbd2" value="DRBD Secondary&lt;br/&gt;Диск scsi2 · 4 ГиБ" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#422006;fontSize=16;spacing=8;" vertex="1" parent="b2">
+          <mxGeometry as="geometry" x="25" y="350" width="360" height="90" />
+        </mxCell>
+        <mxCell id="mount2" value="Клиент NFS&lt;br/&gt;/srv/nextcloud-data&lt;br/&gt;Redis по VIP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="b2">
+          <mxGeometry as="geometry" x="25" y="610" width="360" height="95" />
+        </mxCell>
+        <mxCell id="arb" value="QNetd · арбитраж Corosync&lt;br/&gt;garbd · голос в Galera" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="obs">
+          <mxGeometry as="geometry" x="25" y="65" width="390" height="100" />
+        </mxCell>
+        <mxCell id="mon" value="Prometheus → Grafana&lt;br/&gt;Alertmanager → ntfy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="obs">
+          <mxGeometry as="geometry" x="25" y="220" width="390" height="100" />
+        </mxCell>
+        <mxCell id="logs" value="rsyslog · логи всех ВМ&lt;br/&gt;/var/log/otus-central/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="obs">
+          <mxGeometry as="geometry" x="25" y="390" width="390" height="90" />
+        </mxCell>
+        <mxCell id="borg" value="Borg · резервные копии&lt;br/&gt;Файлы, приложение и дамп БД" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b2350;fontSize=16;spacing=8;" vertex="1" parent="obs">
+          <mxGeometry as="geometry" x="25" y="610" width="390" height="95" />
+        </mxCell>
+        <mxCell id="s1" value="HTTPS · 443" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="user" target="nginx">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s2" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.2;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="nginx" target="app1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s3" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.8;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="nginx" target="app2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s4" value="SQL · localhost" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.2;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="app1" target="db1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s5" value="SQL · localhost" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="app2" target="db2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s6" value="Galera · репликация SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="db1" target="db2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s7" value="DRBD · синхронная репликация блоков" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="drbd1" target="drbd2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="drbd1" target="fs">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="fs" target="vip">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s10" value="NFS: файлы&lt;br/&gt;Redis: кэш, блокировки, сессии" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="app1" target="vip">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="app2" target="mount2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s12" value="NFS и Redis по VIP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0;exitY=0.85;entryX=1;entryY=0.85;" edge="1" parent="1" source="mount2" target="vip">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="s13" value="Borg по TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="jobs" target="borg">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="legend" value="Сплошные стрелки — обращения и репликация. Мониторинг и сбор логов охватывают все четыре ВМ; их соединения опущены для читаемости.&lt;br/&gt;Обе MariaDB допускают запись. Общие ресурсы хранилища работают только на одном бэкенде. Отказ физического Proxmox останавливает весь стенд." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#334155;fontSize=16;spacing=6;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="45" y="1205" width="1610" height="60" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="ha" name="3. Кворум и переключение">
+    <mxGraphModel dx="1500" dy="1110" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1110" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="obsc" value="observability · 10.20.0.20" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="420" y="20" width="660" height="200" />
+        </mxCell>
+        <mxCell id="qnetd" value="QNetd&lt;br/&gt;Арбитраж Corosync" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="obsc">
+          <mxGeometry as="geometry" x="25" y="65" width="280" height="100" />
+        </mxCell>
+        <mxCell id="garbd" value="garbd&lt;br/&gt;Третий голос Galera" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="obsc">
+          <mxGeometry as="geometry" x="355" y="65" width="280" height="100" />
+        </mxCell>
+        <mxCell id="hb1" value="backend1 · 10.20.0.11 · активное хранилище" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="30" y="340" width="670" height="560" />
+        </mxCell>
+        <mxCell id="hb2" value="backend2 · 10.20.0.12 · резервное хранилище" style="swimlane;html=1;startSize=44;horizontal=1;rounded=1;fillColor=#f7fafc;swimlaneFillColor=#f7fafc;strokeColor=#94a3b8;fontColor=#1e293b;fontSize=18;fontStyle=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="800" y="340" width="670" height="560" />
+        </mxCell>
+        <mxCell id="cor1" value="Corosync + QDevice&lt;br/&gt;Связь, членство узлов и кворум" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="hb1">
+          <mxGeometry as="geometry" x="25" y="65" width="315" height="85" />
+        </mxCell>
+        <mxCell id="gal1" value="MariaDB / Galera&lt;br/&gt;Репликация SQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b2350;fontSize=16;spacing=8;" vertex="1" parent="hb1">
+          <mxGeometry as="geometry" x="390" y="65" width="255" height="85" />
+        </mxCell>
+        <mxCell id="pcmk1" value="Pacemaker&lt;br/&gt;Управление ресурсами" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#173b17;fontSize=16;spacing=8;" vertex="1" parent="hb1">
+          <mxGeometry as="geometry" x="25" y="205" width="315" height="80" />
+        </mxCell>
+        <mxCell id="sbd1" value="Diskless SBD → watchdog&lt;br/&gt;Самоизоляция перезагрузкой" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="hb1">
+          <mxGeometry as="geometry" x="25" y="345" width="315" height="90" />
+        </mxCell>
+        <mxCell id="res1" value="DRBD Primary → ext4 → VIP&lt;br/&gt;NFS → Redis&lt;br/&gt;Таймеры Nextcloud и бэкапа" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#173b17;fontSize=16;spacing=8;" vertex="1" parent="hb1">
+          <mxGeometry as="geometry" x="390" y="345" width="255" height="150" />
+        </mxCell>
+        <mxCell id="hcor1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="cor1" target="pcmk1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hsbd1" value="Контроль состояния" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;" edge="1" parent="1" source="pcmk1" target="sbd1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hres1" value="Управляет" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="pcmk1" target="res1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hq1" value="Голос QDevice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;dashed=1;" edge="1" parent="1" source="qnetd" target="cor1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hg1" value="Участие в Galera" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;dashed=1;" edge="1" parent="1" source="garbd" target="gal1">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="cor2" value="Corosync + QDevice&lt;br/&gt;Связь, членство узлов и кворум" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#172554;fontSize=16;spacing=8;" vertex="1" parent="hb2">
+          <mxGeometry as="geometry" x="25" y="65" width="315" height="85" />
+        </mxCell>
+        <mxCell id="gal2" value="MariaDB / Galera&lt;br/&gt;Репликация SQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#3b2350;fontSize=16;spacing=8;" vertex="1" parent="hb2">
+          <mxGeometry as="geometry" x="390" y="65" width="255" height="85" />
+        </mxCell>
+        <mxCell id="pcmk2" value="Pacemaker&lt;br/&gt;Управление ресурсами" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#173b17;fontSize=16;spacing=8;" vertex="1" parent="hb2">
+          <mxGeometry as="geometry" x="25" y="205" width="315" height="80" />
+        </mxCell>
+        <mxCell id="sbd2" value="Diskless SBD → watchdog&lt;br/&gt;Самоизоляция перезагрузкой" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#a3a3a3;fontColor=#262626;fontSize=16;spacing=8;" vertex="1" parent="hb2">
+          <mxGeometry as="geometry" x="25" y="345" width="315" height="90" />
+        </mxCell>
+        <mxCell id="res2" value="DRBD Secondary&lt;br/&gt;После переключения:&lt;br/&gt;Primary → ext4 → VIP → NFS → Redis" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#422006;fontSize=16;spacing=8;" vertex="1" parent="hb2">
+          <mxGeometry as="geometry" x="390" y="345" width="255" height="150" />
+        </mxCell>
+        <mxCell id="hcor2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="cor2" target="pcmk2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hsbd2" value="Контроль состояния" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;" edge="1" parent="1" source="pcmk2" target="sbd2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hres2" value="Управляет" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="pcmk2" target="res2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hq2" value="Голос QDevice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;dashed=1;" edge="1" parent="1" source="qnetd" target="cor2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hg2" value="Участие в Galera" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;dashed=1;" edge="1" parent="1" source="garbd" target="gal2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hcluster" value="Связь узлов" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;exitX=1;exitY=0.8;entryX=0;entryY=0.8;" edge="1" parent="1" source="cor1" target="cor2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hdb" value="Репликация SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;startArrow=block;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="gal1" target="gal2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="hmove" value="Переключение при отказе backend1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#475569;strokeWidth=2;fontSize=14;fontColor=#1e293b;labelBackgroundColor=#ffffff;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="res1" target="res2">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="flow" value="Порядок переключения: обнаружение отказа → проверка кворума и fencing → DRBD Primary → ext4 → VIP → NFS → Redis → таймеры.&lt;br/&gt;Corosync: два голоса бэкендов + один QDevice, кворум — 2 из 3. Galera: два узла MariaDB + garbd; у Galera нет единой главной БД.&lt;br/&gt;QNetd и garbd — разные арбитры. Пунктир показывает участие арбитров и сценарий переключения." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontColor=#334155;fontSize=16;spacing=6;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="45" y="970" width="1410" height="100" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

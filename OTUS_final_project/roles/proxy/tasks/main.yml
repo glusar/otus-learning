@@ -1,0 +1,8 @@
+---
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/automatic-updates.yml"
+- ansible.builtin.import_tasks: network.yml
+- ansible.builtin.import_tasks: https.yml
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/nextcloud-trust.yml"
+- ansible.builtin.import_tasks: monitoring.yml
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/forward-logs.yml"
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/node-exporter.yml"

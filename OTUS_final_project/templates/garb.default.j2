@@ -1,0 +1,4 @@
+# Managed by Ansible. Arbitrator only; no database files here.
+GALERA_NODES="{{ groups['backends'] | map('extract', hostvars, 'internal_ip') | join(' ') }}"
+GALERA_GROUP="{{ galera_cluster_name }}"
+GALERA_OPTIONS="gmcast.listen_addr=tcp://{{ internal_ip }}:4567"

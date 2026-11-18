@@ -1,0 +1,33 @@
+resource {{ drbd_resource }} {
+    protocol C;
+
+    disk {
+        fencing resource-and-stonith;
+        on-io-error detach;
+        c-plan-ahead 0;
+        resync-rate 50M;
+    }
+
+    net {
+        allow-two-primaries no;
+        after-sb-0pri disconnect;
+        after-sb-1pri disconnect;
+        after-sb-2pri disconnect;
+        verify-alg crc32c;
+    }
+
+    handlers {
+        fence-peer "/usr/lib/drbd/crm-fence-peer.sh";
+        after-resync-target "/usr/lib/drbd/crm-unfence-peer.sh";
+        unfence-peer "/usr/lib/drbd/crm-unfence-peer.sh";
+    }
+
+{% for host in groups['backends'] %}
+    on {{ hostvars[host].pve_name }} {
+        device /dev/drbd0;
+        disk {{ hostvars[host].drbd_disk }};
+        address {{ hostvars[host].internal_ip }}:{{ drbd_port }};
+        meta-disk internal;
+    }
+{% endfor %}
+}

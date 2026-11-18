@@ -1,0 +1,84 @@
+---
+- name: Install the Pacemaker and MariaDB exporters from Ubuntu
+  ansible.builtin.apt:
+    name: [prometheus-hacluster-exporter, prometheus-mysqld-exporter]
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+    policy_rc_d: 101
+
+- name: Check the MariaDB exporter account
+  ansible.builtin.command: >-
+    mariadb --batch --skip-column-names -e
+    "SELECT COUNT(*) FROM mysql.user WHERE User='prometheus' AND Host='localhost'"
+  register: mariadb_exporter_account
+  changed_when: false
+
+- name: Allow local MariaDB monitoring over the Unix socket
+  ansible.builtin.command: >-
+    mariadb -e "CREATE USER IF NOT EXISTS 'prometheus'@'localhost' IDENTIFIED VIA unix_socket"
+  when: mariadb_exporter_account.stdout == '0'
+  changed_when: true
+
+- name: Configure the exporter to read MariaDB over the Unix socket
+  ansible.builtin.copy:
+    dest: /etc/mysql/otus-mysqld-exporter.cnf
+    content: |
+      [client]
+      user = prometheus
+      socket = /run/mysqld/mysqld.sock
+    owner: root
+    group: prometheus
+    mode: '0640'
+  register: mariadb_exporter_config
+
+- name: Create systemd override directories for the exporters
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service.d"
+    state: directory
+    mode: '0755'
+  loop:
+    - ha_cluster_exporter
+    - prometheus-mysqld-exporter
+
+- name: Bind exporters to the internal network and allow only observability
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}.service.d/otus.conf"
+    content: |
+      [Unit]
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      ExecStart=
+      ExecStart={{ item.command }}
+      IPAddressDeny=any
+      IPAddressAllow={{ hostvars[groups['monitoring'][0]].internal_ip }}/32
+    mode: '0644'
+  loop:
+    - name: ha_cluster_exporter
+      command: "/usr/bin/ha_cluster_exporter --web.listen-address={{ internal_ip }}:{{ cluster_exporter_port }}"
+    - name: prometheus-mysqld-exporter
+      command: >-
+        /usr/bin/prometheus-mysqld-exporter
+        --web.listen-address={{ internal_ip }}:{{ mariadb_exporter_port }}
+        --config.my-cnf=/etc/mysql/otus-mysqld-exporter.cnf
+        --no-collect.info_schema.tables --no-collect.slave_status
+        --no-collect.info_schema.innodb_cmp --no-collect.info_schema.innodb_cmpmem
+        --no-collect.info_schema.query_response_time
+  loop_control:
+    label: "{{ item.name }}"
+  register: backend_exporter_units
+
+- name: Enable the cluster and MariaDB exporters
+  ansible.builtin.systemd_service:
+    name: "{{ item.item.name }}"
+    enabled: true
+    daemon_reload: "{{ item.changed }}"
+    state: >-
+      {{ 'restarted' if item.changed or (item.item.name == 'prometheus-mysqld-exporter'
+         and mariadb_exporter_config.changed) else 'started' }}
+  loop: "{{ backend_exporter_units.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

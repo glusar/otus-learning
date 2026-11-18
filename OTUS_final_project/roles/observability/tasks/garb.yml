@@ -1,0 +1,26 @@
+---
+- name: Install the arbitrator without automatic startup
+  ansible.builtin.apt:
+    name: galera-arbitrator-4
+    state: present
+    policy_rc_d: 101
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the service account required by the packaged garbd unit
+  ansible.builtin.user:
+    name: _galera
+    system: true
+    home: /nonexistent
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Configure the arbitrator
+  ansible.builtin.template:
+    src: garb.default.j2
+    dest: /etc/default/garb
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /bin/sh -n %s
+  register: garb_configuration

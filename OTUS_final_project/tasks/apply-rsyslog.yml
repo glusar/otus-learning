@@ -1,0 +1,46 @@
+---
+- name: Install the managed rsyslog configuration with validation and rollback
+  block:
+    - name: Write the central logging fragment
+      ansible.builtin.template:
+        src: central-logging.conf.j2
+        dest: /etc/rsyslog.d/30-otus-central.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      register: logging_fragment
+
+    - name: Validate the complete rsyslog configuration
+      ansible.builtin.command: /usr/sbin/rsyslogd -N1
+      changed_when: false
+      when: logging_fragment.changed
+
+    - name: Activate the logging configuration
+      ansible.builtin.systemd_service:
+        name: rsyslog
+        enabled: true
+        state: "{{ 'restarted' if logging_fragment.changed or (logging_receiver_override.changed | default(false)) else 'started' }}"
+  rescue:
+    - name: Restore the previous rsyslog fragment
+      ansible.builtin.copy:
+        src: "{{ logging_fragment.backup_file }}"
+        dest: /etc/rsyslog.d/30-otus-central.conf
+        remote_src: true
+        mode: '0644'
+      when: logging_fragment.backup_file is defined
+
+    - name: Remove the new fragment if no prior fragment existed
+      ansible.builtin.file:
+        path: /etc/rsyslog.d/30-otus-central.conf
+        state: absent
+      when: logging_fragment.changed | default(false) and logging_fragment.backup_file is not defined
+
+    - name: Start rsyslog with the previous configuration
+      ansible.builtin.systemd_service:
+        name: rsyslog
+        state: started
+
+    - name: Report the rejected configuration
+      ansible.builtin.fail:
+        msg: "Central logging configuration failed and was rolled back: {{ ansible_failed_result.msg }}"

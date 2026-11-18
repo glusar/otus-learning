@@ -1,0 +1,10 @@
+---
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/automatic-updates.yml"
+- ansible.builtin.import_tasks: "preflight.yml"
+- ansible.builtin.import_tasks: "watchdog.yml"
+- ansible.builtin.import_tasks: "galera-disk.yml"
+- ansible.builtin.import_tasks: "drbd.yml"
+- ansible.builtin.import_tasks: "nfs-prepare.yml"
+- ansible.builtin.import_tasks: "redis-prepare.yml"
+- ansible.builtin.import_tasks: "corosync.yml"
+- ansible.builtin.import_tasks: "sbd.yml"

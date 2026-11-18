@@ -1,0 +1,9 @@
+add table inet otus_backup
+delete table inet otus_backup
+table inet otus_backup {
+    chain input {
+        type filter hook input priority filter; policy accept;
+        ip saddr { {{ groups['backends'] | map('extract', hostvars, 'internal_ip') | join(', ') }} } ip daddr {{ internal_ip }} tcp dport {{ backup_borg_port }} accept
+        tcp dport {{ backup_borg_port }} drop
+    }
+}

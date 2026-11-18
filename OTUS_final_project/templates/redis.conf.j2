@@ -1,0 +1,19 @@
+# Managed by Ansible. Pacemaker owns this instance; no Redis replication.
+bind {{ project_service_vip }}
+port 6379
+protected-mode yes
+requirepass {{ vault_redis_password }}
+daemonize yes
+supervised no
+logfile ""
+syslog-enabled yes
+syslog-ident otus-redis
+unixsocketperm 700
+dir {{ project_redis_path }}
+dbfilename dump.rdb
+appendonly yes
+appendfsync always
+no-appendfsync-on-rewrite no
+save ""
+maxmemory 256mb
+maxmemory-policy noeviction

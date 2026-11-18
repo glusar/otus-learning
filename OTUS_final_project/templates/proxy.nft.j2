@@ -1,0 +1,27 @@
+#!/usr/sbin/nft -f
+add table inet otus_proxy
+delete table inet otus_proxy
+
+table inet otus_proxy {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state invalid drop
+        iifname "lo" accept
+        ct state established,related accept
+        iifname "{{ proxy_dmz_interface }}" ip saddr {{ project_admin_ip }} ip daddr {{ dmz_ip }} tcp dport { 22, {{ monitoring_web_port }}, {{ ntfy_web_port }} } accept
+        iifname "{{ proxy_dmz_interface }}" ip saddr {{ project_networks.management.cidr }} ip daddr {{ dmz_ip }} tcp dport { 80, 443 } accept
+        iifname "{{ proxy_internal_interface }}" ip saddr { {{ groups['backends'] | map('extract', hostvars, 'internal_ip') | join(', ') }} } ip daddr {{ internal_ip }} tcp dport 443 accept
+        iifname "{{ proxy_internal_interface }}" ip saddr {{ hostvars[groups["monitoring"][0]].internal_ip }} ip daddr {{ internal_ip }} tcp dport { 443, 9100 } accept
+        limit rate 6/minute burst 10 packets log prefix "otus-proxy input drop: "
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+
+        ct state invalid drop
+        iifname "{{ proxy_dmz_interface }}" oifname "{{ proxy_internal_interface }}" ip daddr {{ project_networks.internal.cidr }} ct state established,related accept
+        iifname "{{ proxy_internal_interface }}" oifname "{{ proxy_dmz_interface }}" ip saddr {{ project_networks.internal.cidr }} ct state established,related,new accept
+        limit rate 6/minute burst 10 packets log prefix "otus-proxy forward drop: "
+    }
+}

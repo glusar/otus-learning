@@ -1,0 +1,50 @@
+---
+project_domain: nextcloud.otus.lan
+project_timezone: Europe/Saratov
+project_admin_ip: 192.168.1.100
+project_gateway: 192.168.1.1
+project_dns_servers:
+  - 192.168.1.111
+project_networks:
+  management:
+    bridge: vmbr0
+    cidr: 192.168.1.0/24
+  dmz:
+    bridge: vmbr1
+    cidr: 172.16.10.0/24
+    gateway: 172.16.10.1
+  internal:
+    bridge: vmbr2
+    cidr: 10.20.0.0/24
+
+project_service_vip: 10.20.0.100
+cluster_name: otus-nextcloud
+project_storage_path: /srv/ncdata
+project_nfs_export: "{{ project_storage_path }}/nextcloud"
+project_redis_path: "{{ project_storage_path }}/redis"
+galera_cluster_name: otus-nextcloud-sql
+nextcloud_version: 34.0.5
+external_package_cache: /var/cache/otus-packages
+grafana_deb: grafana_13.3.0_40412481033_linux_amd64.deb
+ntfy_deb: ntfy_2.37.2_linux_amd64.deb
+alertmanager_ui_archive: alertmanager-ui-0.26.0.tar.gz
+nextcloud_path: /var/www/nextcloud
+nextcloud_data_path: /srv/nextcloud-data
+nextcloud_database: nextcloud
+nextcloud_database_user: nextcloud
+nextcloud_admin_user: ncadmin
+
+monitoring_web_port: 8443
+cluster_exporter_port: 9664
+mariadb_exporter_port: 9104
+monitoring_web_url: "https://{{ hostvars[groups['proxies'][0]].dmz_ip }}:{{ monitoring_web_port }}"
+ntfy_web_port: 8444
+ntfy_web_url: "https://{{ hostvars[groups['proxies'][0]].dmz_ip }}:{{ ntfy_web_port }}"
+ntfy_http_port: 2586
+ntfy_topic: otus-alerts
+
+logging_relp_port: 2514
+logging_directory: /var/log/otus-central
+
+backup_borg_port: 2520
+backup_repository: /var/lib/otus-backup/repository

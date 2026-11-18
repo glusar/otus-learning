@@ -1,0 +1,18 @@
+---
+- ansible.builtin.import_tasks: "cold-galera.yml"
+  when:
+    - not (otus_initialize | default(false) | bool)
+    - backend_database_disk.stdout | trim == 'ext4'
+    - groups['backends'] | difference(ansible_play_hosts_all) | length == 0
+- name: Bootstrap Galera for a new installation
+  ansible.builtin.command: galera_new_cluster
+  when:
+    - inventory_hostname == 'backend1'
+    - otus_initialize | default(false) | bool
+  changed_when: true
+- ansible.builtin.import_tasks: "galera-start.yml"
+- ansible.builtin.import_tasks: "galera-sst.yml"
+  when:
+    - inventory_hostname == 'backend1'
+    - otus_initialize | default(false) | bool
+- ansible.builtin.import_tasks: "nextcloud-db-user.yml"

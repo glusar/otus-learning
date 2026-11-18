@@ -1,0 +1,55 @@
+---
+- name: Check for a running database on each backend
+  ansible.builtin.command: systemctl is-active mariadb
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['backends'] }}"
+  register: cold_services
+  changed_when: false
+  failed_when: cold_services.rc not in [0, 3]
+
+- name: Recover a fully stopped Galera component
+  when: cold_services.results | selectattr('rc', 'equalto', 0) | list | length == 0
+  block:
+    - name: Confirm that neither server has a running MariaDB process
+      ansible.builtin.command: pgrep -x mariadbd
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['backends'] }}"
+      register: cold_processes
+      changed_when: false
+      failed_when: cold_processes.rc != 1
+
+    - name: Read the saved Galera state on both nodes
+      ansible.builtin.slurp:
+        src: /var/lib/mysql/grastate.dat
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['backends'] }}"
+      register: cold_states
+
+    - name: Read the recovered database positions on both stopped nodes
+      ansible.builtin.command: /usr/bin/galera_recovery
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['backends'] }}"
+      register: cold_recovery
+      changed_when: false
+
+    - name: Identify nodes explicitly marked safe to bootstrap
+      ansible.builtin.set_fact:
+        cold_safe: "{{ (cold_safe | default([])) + [item.item] }}"
+      loop: "{{ cold_states.results }}"
+      when: (item.content | b64decode) is search('(?m)^safe_to_bootstrap:[ ]+1$')
+
+    - name: Require the same UUID and the newest position on the designated safe node
+      ansible.builtin.assert:
+        that:
+          - cold_safe | default([]) | length == 1
+          - cold_positions | length == 2
+          - cold_positions[0].split(':')[0] == cold_positions[1].split(':')[0]
+          - cold_positions[groups['backends'].index(cold_safe[0])].split(':')[1] | int >= cold_positions[groups['backends'].index(cold_peer)].split(':')[1] | int
+        fail_msg: No unique safe bootstrap node with the newest position. Follow power-control/POWER_CYCLE.md.
+      vars:
+        cold_positions: "{{ cold_recovery.results | map(attribute='stdout') | map('trim') | map('regex_replace', '^--wsrep_start_position=', '') | select('match', '^[0-9a-f-]+:[0-9]+$') | list }}"
+        cold_peer: "{{ (groups['backends'] | difference(cold_safe) | list)[0] }}"
+    - name: Bootstrap the verified node
+      ansible.builtin.command: galera_new_cluster
+      delegate_to: "{{ (cold_safe | default([inventory_hostname]))[0] }}"
+      changed_when: true

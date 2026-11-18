@@ -1,0 +1,25 @@
+# Managed by Ansible. Local database disk; replication is provided by Galera.
+[mariadb]
+user = mysql
+datadir = /var/lib/mysql
+socket = /run/mysqld/mysqld.sock
+pid-file = /run/mysqld/mysqld.pid
+bind-address = {{ internal_ip }}
+server-id = {{ vmid }}
+character-set-server = utf8mb4
+collation-server = utf8mb4_general_ci
+transaction-isolation = READ-COMMITTED
+binlog-format = ROW
+default-storage-engine = InnoDB
+innodb-autoinc-lock-mode = 2
+innodb-buffer-pool-size = 1G
+max-connections = 150
+wsrep-on = ON
+wsrep-provider = /usr/lib/galera/libgalera_smm.so
+wsrep-cluster-name = {{ galera_cluster_name }}
+wsrep-cluster-address = gcomm://{{ groups['backends'] | map('extract', hostvars, 'internal_ip') | join(',') }}
+wsrep-node-name = {{ pve_name }}
+wsrep-node-address = {{ internal_ip }}
+wsrep-provider-options = "gcache.size=128M;gcache.recover=yes"
+wsrep-sst-method = mariabackup
+wsrep-sst-auth = otus_sst:{{ vault_galera_sst_password }}

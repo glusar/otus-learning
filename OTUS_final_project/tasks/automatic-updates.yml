@@ -1,0 +1,15 @@
+---
+- name: Keep package upgrades under administrator control
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/99-otus-manual-upgrades
+    content: |
+      APT::Periodic::Unattended-Upgrade "0";
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Disable scheduled package upgrades that can restart cluster services
+  ansible.builtin.systemd_service:
+    name: apt-daily-upgrade.timer
+    enabled: false
+    state: stopped

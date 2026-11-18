@@ -1,0 +1,58 @@
+---
+- name: Wait for the replication connection
+  ansible.builtin.command: drbdadm cstate {{ drbd_resource }}
+  register: drbd_connection
+  changed_when: false
+  retries: 30
+  delay: 2
+  until: drbd_connection.stdout in ['Connected', 'SyncSource', 'SyncTarget']
+
+- name: Read the current replication state
+  ansible.builtin.command: drbdadm dstate {{ drbd_resource }}
+  register: drbd_disk_state
+  changed_when: false
+
+- name: Require explicit initialization of a new empty resource
+  ansible.builtin.fail:
+    msg: "For the first deployment on empty disks, add -e otus_initialize=true."
+  when:
+    - drbd_disk_state.stdout == 'Inconsistent/Inconsistent'
+    - not (otus_initialize | default(false) | bool)
+
+- name: Select the first backend as the source for initial synchronization
+  ansible.builtin.command: drbdadm primary --force {{ drbd_resource }}
+  when:
+    - drbd_disk_state.stdout == 'Inconsistent/Inconsistent'
+    - otus_initialize | default(false) | bool
+    - inventory_hostname == 'backend1'
+  changed_when: true
+
+- name: Wait for both copies to become up to date
+  ansible.builtin.command: drbdadm dstate {{ drbd_resource }}
+  register: drbd_sync
+  changed_when: false
+  retries: 360
+  delay: 5
+  until: drbd_sync.stdout == 'UpToDate/UpToDate'
+
+- name: Save the Pacemaker resource definition
+  ansible.builtin.template:
+    src: drbd.crm.j2
+    dest: /etc/corosync/otus-drbd.crm
+    owner: root
+    group: root
+    mode: '0644'
+  register: drbd_resource_definition
+
+- name: Read the current Pacemaker configuration
+  ansible.builtin.command: crm configure show
+  register: drbd_cluster_config
+  changed_when: false
+  check_mode: false
+
+- name: Apply the promotable DRBD resource definition
+  ansible.builtin.command: crm --wait configure load update /etc/corosync/otus-drbd.crm
+  when: >-
+    drbd_resource_definition.changed or
+    ('cl_drbd_' ~ drbd_resource) not in drbd_cluster_config.stdout
+  changed_when: true

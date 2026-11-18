@@ -1,0 +1,97 @@
+---
+- name: Install the local Grafana package and Ubuntu dependencies
+  ansible.builtin.apt:
+    deb: "{{ external_package_cache }}/{{ grafana_deb }}"
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+    policy_rc_d: 101
+
+- name: Create Grafana configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/systemd/system/grafana-server.service.d
+    - /etc/grafana/provisioning/datasources
+    - /etc/grafana/provisioning/dashboards
+    - /var/lib/grafana/otus-dashboards
+
+- name: Configure private Grafana startup settings
+  ansible.builtin.copy:
+    dest: /etc/grafana/otus.env
+    content: |
+      GF_SERVER_HTTP_ADDR={{ internal_ip }}
+      GF_SERVER_ROOT_URL={{ monitoring_web_url }}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH=true
+      GF_SECURITY_COOKIE_SECURE=true
+      GF_SERVER_HTTP_PORT=3000
+      GF_SECURITY_ADMIN_PASSWORD={{ vault_grafana_admin_password }}
+      GF_ANALYTICS_REPORTING_ENABLED=false
+      GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      GF_PLUGINS_PREINSTALL_DISABLED=true
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart Grafana
+
+- name: Load Grafana startup settings from systemd
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/grafana-server.service.d/otus.conf
+    content: |
+      [Unit]
+      Requires=otus-monitoring-firewall.service
+      After=otus-monitoring-firewall.service
+
+      [Service]
+      EnvironmentFile=/etc/grafana/otus.env
+    mode: '0644'
+  notify: Restart Grafana
+
+- name: Provision Grafana data source and dashboard provider
+  ansible.builtin.copy:
+    dest: "/etc/grafana/provisioning/{{ item.path }}"
+    content: "{{ item.content }}"
+    mode: '0644'
+  loop:
+    - path: datasources/otus.yml
+      content: |
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            uid: otus-prometheus
+            type: prometheus
+            access: proxy
+            url: http://{{ internal_ip }}:9090
+            isDefault: true
+            editable: false
+    - path: dashboards/otus.yml
+      content: |
+        apiVersion: 1
+        providers:
+          - name: OTUS
+            folder: OTUS
+            type: file
+            options:
+              path: /var/lib/grafana/otus-dashboards
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Restart Grafana
+
+- name: Install the cluster dashboard
+  ansible.builtin.copy:
+    src: otus-monitoring-dashboard.json
+    dest: /var/lib/grafana/otus-dashboards/nextcloud.json
+    mode: '0644'
+
+- name: Load changed Grafana configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable Grafana
+  ansible.builtin.systemd_service:
+    name: grafana-server
+    enabled: true
+    state: started

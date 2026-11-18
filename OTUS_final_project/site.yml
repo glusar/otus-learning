@@ -1,0 +1,85 @@
+---
+- name: Configure the proxy and access to the internal network
+  hosts: proxies
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  roles: [proxy]
+
+- name: Start quorum and prepare observability services
+  hosts: monitoring
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  vars:
+    otus_phase: foundation
+  roles: [observability]
+
+- name: Prepare backend disks and cluster membership
+  hosts: backends
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  serial: 1
+  vars:
+    otus_phase: prepare
+  pre_tasks:
+    - name: Read the guest kernel version
+      ansible.builtin.setup:
+        filter: ansible_kernel
+  tasks:
+    - name: Apply the selected backend role
+      ansible.builtin.include_role:
+        name: "{{ inventory_hostname }}"
+        public: false
+
+- name: Bring up Galera and configure local database access
+  hosts: backends
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  serial: 1
+  vars:
+    otus_phase: database
+  tasks:
+    - name: Apply the selected backend role
+      ansible.builtin.include_role:
+        name: "{{ inventory_hostname }}"
+        public: false
+
+- name: Join the Galera arbitrator after the databases are ready
+  hosts: monitoring
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  vars:
+    otus_phase: ready
+  roles: [observability]
+
+- name: Configure shared storage, Nextcloud and its background jobs
+  hosts: backends
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  serial: 1
+  vars:
+    otus_phase: application
+  tasks:
+    - name: Apply the selected backend role
+      ansible.builtin.include_role:
+        name: "{{ inventory_hostname }}"
+        public: false
+
+- name: Activate the background resources and verify the backends
+  hosts: backends
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  serial: 1
+  vars:
+    otus_phase: ready
+  tasks:
+    - name: Apply the selected backend role
+      ansible.builtin.include_role:
+        name: "{{ inventory_hostname }}"
+        public: false

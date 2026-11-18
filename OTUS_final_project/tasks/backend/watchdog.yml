@@ -1,0 +1,35 @@
+---
+- name: Install additional modules for the running kernel and future updates
+  ansible.builtin.apt:
+    name:
+      - linux-image-extra-virtual
+      - "linux-modules-extra-{{ ansible_facts.kernel }}"
+    state: present
+    install_recommends: false
+
+- name: Load the driver before SBD even when Ubuntu blacklists automatic loading
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-watchdog.service
+    content: |
+      [Unit]
+      Description=Load the OTUS virtual watchdog driver
+      Before=sbd.service corosync.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/modprobe i6300esb
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+  register: watchdog_service
+
+- name: Enable the watchdog driver service
+  ansible.builtin.systemd_service:
+    name: otus-watchdog
+    daemon_reload: "{{ watchdog_service.changed }}"
+    enabled: true
+    state: started

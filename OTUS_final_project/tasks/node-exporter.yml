@@ -1,0 +1,32 @@
+---
+- name: Install Node Exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+    policy_rc_d: 101
+  tags: packages
+
+- name: Create the textfile collector directory
+  ansible.builtin.file:
+    path: /var/lib/prometheus/otus-textfile
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Bind Node Exporter to the monitoring network
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    content: |
+      ARGS="--web.listen-address={{ '127.0.0.1' if inventory_hostname in groups['monitoring'] else internal_ip }}:9100 --collector.textfile.directory=/var/lib/prometheus/otus-textfile --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/credentials|srv/nextcloud-data)($|/){% if inventory_hostname in groups['backends'] %} --collector.systemd --collector.systemd.unit-include=otus-nextcloud-backup.service{% endif %}"
+    mode: '0644'
+  notify: Restart Node Exporter
+
+- name: Start the node metrics endpoint
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started

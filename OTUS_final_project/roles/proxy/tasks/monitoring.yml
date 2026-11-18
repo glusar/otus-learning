@@ -1,0 +1,24 @@
+---
+- name: Install the private monitoring HTTPS site
+  ansible.builtin.template:
+    src: monitoring-proxy.conf.j2
+    dest: /etc/nginx/sites-available/otus-monitoring
+    mode: '0644'
+  notify: Reload Nginx
+
+- name: Enable the monitoring site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/otus-monitoring
+    dest: /etc/nginx/sites-enabled/otus-monitoring
+    state: link
+  notify: Reload Nginx
+
+- name: Validate both Nginx sites
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Enable Nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: true
+    state: started

@@ -1,0 +1,21 @@
+---
+- name: Check the dedicated SST account
+  ansible.builtin.command: mariadb --batch --skip-column-names
+  args:
+    stdin: >-
+      SELECT COUNT(*) FROM mysql.user WHERE User='otus_sst' AND Host='localhost'
+      AND plugin='mysql_native_password' AND authentication_string=PASSWORD('{{ vault_galera_sst_password }}');
+  register: galera_sst_account
+  changed_when: false
+  no_log: true
+
+- name: Create or update the local SST account
+  ansible.builtin.command: mariadb
+  args:
+    stdin: |
+      CREATE USER IF NOT EXISTS 'otus_sst'@'localhost' IDENTIFIED BY '{{ vault_galera_sst_password }}';
+      ALTER USER 'otus_sst'@'localhost' IDENTIFIED BY '{{ vault_galera_sst_password }}';
+      GRANT RELOAD, PROCESS, LOCK TABLES, BINLOG MONITOR, REPLICA MONITOR ON *.* TO 'otus_sst'@'localhost';
+  when: galera_sst_account.stdout != '1'
+  changed_when: true
+  no_log: true

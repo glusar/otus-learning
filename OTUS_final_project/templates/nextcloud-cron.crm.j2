@@ -1,0 +1,9 @@
+primitive p_nextcloud_cron systemd:otus-nextcloud-cron.timer \
+    op start interval=0 timeout=60s \
+    op stop interval=0 timeout=90s \
+    op monitor interval=30s timeout=30s \
+    meta resource-stickiness=1000
+
+colocation c_nextcloud_cron_on_redis inf: p_nextcloud_cron p_redis
+order o_redis_before_nextcloud_cron Mandatory: p_redis:start p_nextcloud_cron:start
+order o_nfs_before_nextcloud_cron Mandatory: p_nfs_export:start p_nextcloud_cron:start

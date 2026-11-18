@@ -1,0 +1,80 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/otus-alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['{{ internal_ip }}:9093']
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['{{ internal_ip }}:9090']
+
+  - job_name: node
+    static_configs:
+{% for host in groups['nextcloud'] %}
+      - targets: ['{{ "127.0.0.1" if host in groups["monitoring"] else hostvars[host].internal_ip }}:9100']
+        labels:
+          instance: {{ host }}
+          role: {{ 'backend' if host in groups['backends'] else ('proxy' if host in groups['proxies'] else 'monitoring') }}
+{% endfor %}
+
+  - job_name: ha-cluster
+    static_configs:
+{% for host in groups['backends'] %}
+      - targets: ['{{ hostvars[host].internal_ip }}:{{ cluster_exporter_port }}']
+        labels:
+          instance: {{ host }}
+{% endfor %}
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: ha_cluster_pacemaker_resources|ha_cluster_corosync_(quorum_votes|quorate)
+        action: keep
+
+  - job_name: mariadb
+    static_configs:
+{% for host in groups['backends'] %}
+      - targets: ['{{ hostvars[host].internal_ip }}:{{ mariadb_exporter_port }}']
+        labels:
+          instance: {{ host }}
+{% endfor %}
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: mysql_up|mysql_global_status_wsrep_(ready|local_state)|mysql_global_variables_read_only
+        action: keep
+
+  - job_name: nextcloud-https
+    metrics_path: /probe
+    params:
+      module: [nextcloud_https]
+    static_configs:
+      - targets: ['https://{{ hostvars[groups["proxies"][0]].internal_ip }}/login']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - target_label: instance
+        replacement: {{ project_domain }}
+      - target_label: __address__
+        replacement: '127.0.0.1:9115'
+
+  - job_name: storage-tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets: ['{{ project_service_vip }}:2049']
+        labels:
+          instance: nfs
+      - targets: ['{{ project_service_vip }}:6379']
+        labels:
+          instance: redis
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - target_label: __address__
+        replacement: '127.0.0.1:9115'

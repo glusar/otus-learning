@@ -1,0 +1,20 @@
+<VirtualHost {{ internal_ip }}:80>
+    ServerName {{ project_domain }}
+    DocumentRoot {{ nextcloud_path }}
+    ProxyTimeout 600
+    <Directory {{ nextcloud_path }}>
+        Require ip {{ hostvars[groups['proxies'][0]].internal_ip }}
+        AllowOverride All
+        Options FollowSymLinks
+        <IfModule mod_dav.c>
+            Dav off
+        </IfModule>
+        SetEnv HOME {{ nextcloud_path }}
+        SetEnv HTTP_HOME {{ nextcloud_path }}
+    </Directory>
+    <FilesMatch "\.php$">
+        SetHandler "proxy:unix:/run/php/php8.3-fpm-nextcloud.sock|fcgi://localhost/"
+    </FilesMatch>
+    ErrorLog ${APACHE_LOG_DIR}/nextcloud-error.log
+    CustomLog ${APACHE_LOG_DIR}/nextcloud-access.log combined
+</VirtualHost>

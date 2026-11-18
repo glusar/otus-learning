@@ -1,0 +1,36 @@
+---
+- name: Install the forwarding module
+  ansible.builtin.apt:
+    name: [rsyslog, rsyslog-relp]
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Make the PHP-FPM log readable by rsyslog
+  ansible.builtin.file:
+    path: /var/log/php8.3-fpm.log
+    state: file
+    group: adm
+    mode: '0640'
+  when: inventory_hostname in groups['backends']
+
+- name: Apply the sender configuration
+  ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/apply-rsyslog.yml"
+
+- name: Send Nextcloud application and audit events to syslog
+  ansible.builtin.copy:
+    dest: "{{ nextcloud_path }}/config/otus-logging.config.php"
+    owner: root
+    group: www-data
+    mode: '0640'
+    validate: /usr/bin/php8.3 -l %s
+    content: |
+      <?php
+      $CONFIG = [
+          'log_type' => 'syslog',
+          'syslog_tag' => 'nextcloud',
+          'log_type_audit' => 'syslog',
+          'syslog_tag_audit' => 'nextcloud-audit',
+      ];
+  when: inventory_hostname in groups['backends']

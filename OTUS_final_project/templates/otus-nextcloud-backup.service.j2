@@ -1,0 +1,21 @@
+[Unit]
+Description=Consistent Borg backup of Nextcloud
+PartOf=otus-nextcloud-backup.timer
+
+[Service]
+Type=oneshot
+Environment=TZ={{ project_timezone }}
+UMask=0077
+WorkingDirectory=/var/lib/otus-backup
+ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint {{ project_storage_path }} --source /dev/drbd0 --types ext4
+ExecStartPre=/usr/local/sbin/otus-borg list --short ssh://otus-borg@{{ backup_receiver_ip }}{{ backup_repository }}
+ExecStart=/usr/bin/systemctl start otus-nextcloud-backup-snapshot.service
+ExecStart=/bin/sh -ec 'cd /var/lib/otus-backup/staging; exec /usr/local/sbin/otus-borg create --compression zstd,3 ssh://otus-borg@{{ backup_receiver_ip }}{{ backup_repository }}::nextcloud-{now:%%Y-%%m-%%dT%%H-%%M-%%S%%z} .'
+ExecStart=/usr/local/sbin/otus-borg prune --glob-archives nextcloud-* --keep-daily 3 ssh://otus-borg@{{ backup_receiver_ip }}{{ backup_repository }}
+ExecStart=/usr/local/sbin/otus-borg compact ssh://otus-borg@{{ backup_receiver_ip }}{{ backup_repository }}
+ExecStart=/usr/bin/install -m 0644 /etc/otus-backup/success.prom /var/lib/prometheus/otus-textfile/otus-backup.prom.tmp
+ExecStart=/usr/bin/mv /var/lib/prometheus/otus-textfile/otus-backup.prom.tmp /var/lib/prometheus/otus-textfile/otus-backup.prom
+ExecStopPost=/usr/bin/systemctl stop otus-nextcloud-backup-snapshot.service
+ExecStopPost=/usr/bin/rm -rf /var/lib/otus-backup/staging
+TimeoutStartSec=60min
+TimeoutStopSec=180s

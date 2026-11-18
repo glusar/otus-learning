@@ -1,0 +1,4 @@
+---
+- ansible.builtin.import_tasks: "cron-resource.yml"
+- ansible.builtin.import_tasks: "backup-resource.yml"
+- ansible.builtin.import_tasks: "ready.yml"

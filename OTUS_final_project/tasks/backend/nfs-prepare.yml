@@ -1,0 +1,60 @@
+---
+- name: Install the NFS server and cluster agents
+  ansible.builtin.apt:
+    name:
+      - nfs-kernel-server
+      - nfs-common
+      - resource-agents-extra
+    state: present
+    policy_rc_d: 101
+
+- name: Disable NFS startup outside Pacemaker
+  ansible.builtin.systemd_service:
+    name: nfs-server
+    enabled: false
+
+# The agent prefers this legacy script over systemd when it is executable.
+- name: Use native systemd services in the NFS cluster agent
+  ansible.builtin.file:
+    path: /etc/init.d/nfs-kernel-server
+    mode: '0644'
+
+- name: Disable legacy RPC services unused by NFSv4
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    masked: true
+  loop:
+    - rpc-statd.service
+    - rpc-statd-notify.service
+    - rpcbind.service
+    - rpcbind.socket
+
+- name: Create the NFS configuration directory
+  ansible.builtin.file:
+    path: /etc/nfs.conf.d
+    state: directory
+    mode: '0755'
+
+- name: Configure NFSv4 on the service address
+  ansible.builtin.copy:
+    dest: /etc/nfs.conf.d/otus.conf
+    content: |
+      [nfsd]
+      host={{ project_service_vip }}
+      vers3=n
+      vers4=y
+      tcp=y
+      udp=n
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create the local storage mount point
+  ansible.builtin.file:
+    path: "{{ project_storage_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+

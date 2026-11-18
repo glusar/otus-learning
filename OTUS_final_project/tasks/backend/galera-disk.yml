@@ -1,0 +1,131 @@
+---
+- name: Require the dedicated SST password from Vault
+  ansible.builtin.assert:
+    that:
+      - vault_galera_sst_password is defined
+      - vault_galera_sst_password is string
+      - vault_galera_sst_password is match('^[A-Za-z0-9_-]+$')
+  no_log: true
+
+- name: Read the current database mount
+  ansible.builtin.command: findmnt --noheadings --mountpoint /var/lib/mysql --output UUID
+  register: galera_mount
+  changed_when: false
+  failed_when: galera_mount.rc not in [0, 1]
+  check_mode: false
+
+- name: Protect existing data in an unmounted database directory
+  ansible.builtin.command: find /var/lib/mysql -mindepth 1 -maxdepth 1 -print -quit
+  register: galera_local_data
+  when: galera_mount.rc == 1
+  changed_when: false
+  # find returns 1 when the directory does not yet exist.
+  failed_when: galera_local_data.stdout != '' or galera_local_data.rc not in [0, 1]
+  check_mode: false
+
+- name: Create ext4 only on a verified empty database disk
+  ansible.builtin.command: mkfs.ext4 -m 1 -L ncsql {{ galera_disk }}
+  when: backend_database_disk.stdout | trim == ''
+  changed_when: true
+
+- name: Read the database filesystem UUID and require the correct mounted disk
+  ansible.builtin.command: blkid -p -s UUID -o value {{ galera_disk }}
+  register: galera_uuid
+  changed_when: false
+  failed_when: >-
+    galera_uuid.rc != 0 or galera_uuid.stdout == '' or
+    (galera_mount.rc == 0 and galera_mount.stdout != galera_uuid.stdout)
+  check_mode: false
+
+- name: Create the database mount point
+  ansible.builtin.file:
+    path: /var/lib/mysql
+    state: directory
+    mode: '0755'
+
+- name: Persist the local database mount
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\S+\s+/var/lib/mysql\s+'
+    line: "UUID={{ galera_uuid.stdout }} /var/lib/mysql ext4 defaults 0 2"
+  register: galera_fstab
+
+- name: Reload systemd mount definitions
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: galera_fstab.changed
+
+- name: Mount the database filesystem
+  ansible.builtin.command: mount /var/lib/mysql
+  when: galera_mount.rc == 1
+  changed_when: true
+
+- name: Install MariaDB 10.11 and Galera without starting the database
+  ansible.builtin.apt:
+    name:
+      - mariadb-server=1:10.11.*
+      - mariadb-backup=1:10.11.*
+      - galera-4
+      - socat
+    state: present
+    policy_rc_d: 101
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the MariaDB systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/mariadb.service.d
+    state: directory
+    mode: '0755'
+
+- name: Require the database disk before MariaDB startup
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mariadb.service.d/otus-storage.conf
+    content: |
+      [Unit]
+      RequiresMountsFor=/var/lib/mysql
+      [Service]
+      ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint /var/lib/mysql --source UUID={{ galera_uuid.stdout }}
+    owner: root
+    group: root
+    mode: '0644'
+  register: galera_unit
+
+- name: Reload the database service definition
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: galera_unit.changed
+
+- name: Write and validate the Galera configuration
+  ansible.builtin.template:
+    src: galera.cnf.j2
+    dest: /etc/mysql/mariadb.conf.d/60-otus-galera.cnf
+    owner: root
+    group: mysql
+    mode: '0640'
+    validate: /usr/sbin/mariadbd --defaults-file=%s --verbose --help
+  register: galera_configuration
+  no_log: true
+
+- name: Read existing Galera state before any initial bootstrap
+  ansible.builtin.stat:
+    path: /var/lib/mysql/grastate.dat
+    get_checksum: false
+  register: galera_state
+  when: otus_initialize | default(false) | bool
+
+- name: Find existing application schemas before initial bootstrap
+  ansible.builtin.command: >-
+    find /var/lib/mysql -mindepth 1 -maxdepth 1 -type d
+    ! -name mysql ! -name performance_schema ! -name sys ! -name lost+found
+  register: galera_existing_schemas
+  changed_when: false
+  when: otus_initialize | default(false) | bool
+
+- name: Refuse initial bootstrap on a previously used database
+  ansible.builtin.assert:
+    that:
+      - not galera_state.stat.exists
+      - galera_existing_schemas.stdout == ''
+    fail_msg: Initial bootstrap is only for new databases; existing Galera requires a separate recovery procedure.
+  when: otus_initialize | default(false) | bool

@@ -1,0 +1,117 @@
+---
+- name: Install Borg, socat and nftables
+  ansible.builtin.apt:
+    name: [borgbackup, socat, nftables]
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the unprivileged backup account
+  ansible.builtin.user:
+    name: otus-borg
+    home: /var/lib/otus-backup
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create the private Borg storage directory
+  ansible.builtin.file:
+    path: /var/lib/otus-backup
+    state: directory
+    owner: otus-borg
+    group: otus-borg
+    mode: '0700'
+
+- name: Create the server TLS directory
+  ansible.builtin.file:
+    path: /etc/otus-backup
+    state: directory
+    owner: root
+    group: otus-borg
+    mode: '0750'
+
+- name: Install the backup CA certificate
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/ca.crt
+    content: "{{ vault_backup_ca_certificate }}"
+    mode: '0644'
+  register: backup_server_ca
+
+- name: Install the receiver certificate and private key
+  ansible.builtin.copy:
+    dest: /etc/otus-backup/tls.pem
+    content: "{{ vault_backup_server_pem }}"
+    owner: root
+    group: otus-borg
+    mode: '0640'
+  no_log: true
+  diff: false
+  register: backup_server_tls
+
+- name: Initialize the encrypted Borg repository if absent
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - otus-borg
+      - --
+      - /usr/bin/borg
+      - init
+      - --encryption
+      - repokey-blake2
+      - --storage-quota
+      - 20G
+      - "{{ backup_repository }}"
+    creates: "{{ backup_repository }}/config"
+  environment:
+    BORG_PASSPHRASE: "{{ vault_backup_passphrase }}"
+    HOME: /var/lib/otus-backup
+  no_log: true
+
+- name: Install the restricted backup firewall
+  ansible.builtin.template:
+    src: backup-nft.j2
+    dest: /etc/otus-backup/receiver.nft
+    mode: '0644'
+    validate: /usr/sbin/nft -c -f %s
+  register: backup_firewall_rules
+
+- name: Persist the receiver firewall
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-backup-firewall.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Restrict OTUS backup TLS ports
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/otus-backup/receiver.nft
+      ExecReload=/usr/sbin/nft -f /etc/otus-backup/receiver.nft
+
+      [Install]
+      WantedBy=multi-user.target
+  register: backup_firewall_unit
+
+- name: Start the receiver firewall
+  ansible.builtin.systemd_service:
+    name: otus-backup-firewall
+    enabled: true
+    daemon_reload: "{{ backup_firewall_unit.changed }}"
+    state: "{{ 'reloaded' if backup_firewall_rules.changed else 'started' }}"
+
+- name: Install the Borg TLS receiver
+  ansible.builtin.template:
+    src: backup-receiver.service.j2
+    dest: /etc/systemd/system/otus-backup-borg.service
+    mode: '0644'
+  register: backup_receiver_unit
+
+- name: Start the Borg TLS receiver
+  ansible.builtin.systemd_service:
+    name: otus-backup-borg
+    enabled: true
+    daemon_reload: "{{ backup_receiver_unit.changed }}"
+    state: "{{ 'restarted' if backup_receiver_unit.changed or backup_server_tls.changed or backup_server_ca.changed else 'started' }}"

@@ -1,0 +1,15 @@
+{{ logging_directory }}/*.log {
+    su syslog adm
+    daily
+    maxsize 16M
+    maxage 7
+    rotate 14
+    ifempty
+    missingok
+    compress
+    create 0640 syslog adm
+    sharedscripts
+    postrotate
+        /usr/bin/systemctl kill --signal=HUP rsyslog.service
+    endscript
+}

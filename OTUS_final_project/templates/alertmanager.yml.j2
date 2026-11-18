@@ -1,0 +1,16 @@
+route:
+  receiver: ntfy
+  group_by: ['...']
+  group_wait: 5s
+  group_interval: 15s
+  repeat_interval: 4h
+
+receivers:
+  - name: ntfy
+    webhook_configs:
+      - url: "http://{{ internal_ip }}:{{ ntfy_http_port }}/{{ ntfy_topic }}?template=alertmanager"
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/prometheus/ntfy-publisher-token

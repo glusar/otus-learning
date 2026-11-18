@@ -1,0 +1,20 @@
+[Unit]
+Description=OTUS TLS backup transport (borg)
+Requires=otus-backup-firewall.service
+Wants=network-online.target
+After=network-online.target otus-backup-firewall.service
+
+[Service]
+User=otus-borg
+Group=otus-borg
+UMask=0077
+ExecStart=/usr/bin/socat -t 120 -T 180 OPENSSL-LISTEN:{{ backup_borg_port }},bind={{ internal_ip }},reuseaddr,fork,max-children=4,verify=1,cafile=/etc/otus-backup/ca.crt,cert=/etc/otus-backup/tls.pem "EXEC:/usr/bin/borg serve --restrict-to-repository {{ backup_repository }} --storage-quota 20G"
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/otus-backup
+
+[Install]
+WantedBy=multi-user.target

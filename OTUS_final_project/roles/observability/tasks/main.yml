@@ -1,0 +1,16 @@
+---
+- name: Configure foundation on observability
+  when: otus_phase == "foundation"
+  block:
+    - ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/automatic-updates.yml"
+    - ansible.builtin.import_tasks: "qnetd.yml"
+    - ansible.builtin.import_tasks: "garb.yml"
+    - ansible.builtin.import_tasks: "logging.yml"
+    - ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/node-exporter.yml"
+    - ansible.builtin.import_tasks: "backup.yml"
+    - ansible.builtin.import_tasks: "monitoring.yml"
+    - ansible.builtin.import_tasks: "grafana.yml"
+- name: Configure ready on observability
+  when: otus_phase == "ready"
+  block:
+    - ansible.builtin.import_tasks: "garb-start.yml"

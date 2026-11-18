@@ -1,0 +1,186 @@
+---
+- name: Install Prometheus, Blackbox Exporter and Alertmanager
+  ansible.builtin.apt:
+    name:
+      - prometheus
+      - prometheus-blackbox-exporter
+      - prometheus-alertmanager
+    state: present
+    install_recommends: false
+    policy_rc_d: 101
+  tags: packages
+
+- name: Install nftables for monitoring access rules
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+    policy_rc_d: 101
+
+- name: Restrict internal web ports to the proxy and local processes
+  ansible.builtin.copy:
+    dest: /etc/otus-monitoring.nft
+    mode: '0644'
+    validate: /usr/sbin/nft -c -f %s
+    content: |
+      add table inet otus_monitoring
+      delete table inet otus_monitoring
+      table inet otus_monitoring {
+          chain input {
+              type filter hook input priority filter; policy accept;
+              iifname "lo" accept
+              ip saddr {{ hostvars[groups['proxies'][0]].internal_ip }} tcp dport { {{ ntfy_http_port }}, 3000, 9090, 9093 } accept
+              tcp dport { {{ ntfy_http_port }}, 3000, 9090, 9093 } drop
+          }
+      }
+  register: monitoring_firewall_rules
+
+- name: Persist the monitoring access rules on boot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-monitoring-firewall.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Restrict OTUS monitoring web ports
+      Before=prometheus.service prometheus-alertmanager.service grafana-server.service ntfy.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/otus-monitoring.nft
+      ExecReload=/usr/sbin/nft -f /etc/otus-monitoring.nft
+
+      [Install]
+      WantedBy=multi-user.target
+  register: monitoring_firewall_unit
+
+- name: Apply monitoring access rules before opening listeners
+  ansible.builtin.systemd_service:
+    name: otus-monitoring-firewall
+    daemon_reload: "{{ monitoring_firewall_unit.changed }}"
+    enabled: true
+    state: "{{ 'reloaded' if monitoring_firewall_rules.changed else 'started' }}"
+
+- name: Create monitoring service override directories
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service.d"
+    state: directory
+    mode: '0755'
+  loop: [prometheus, prometheus-alertmanager]
+
+- name: Require access rules before monitoring web services start
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item }}.service.d/otus-firewall.conf"
+    mode: '0644'
+    content: |
+      [Unit]
+      Requires=otus-monitoring-firewall.service
+      After=otus-monitoring-firewall.service
+  loop: [prometheus, prometheus-alertmanager]
+  register: monitoring_firewall_dependencies
+
+- name: Create package data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: '0750'
+  loop:
+    - /var/lib/prometheus/metrics2
+    - /var/lib/prometheus/alertmanager
+
+- name: Install the public Nextcloud certificate for probes
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/.secrets/nextcloud.crt"
+    dest: /etc/prometheus/otus-nextcloud.crt
+    mode: '0644'
+  notify: Restart Blackbox Exporter
+
+- name: Configure HTTPS and TCP probes
+  ansible.builtin.template:
+    src: blackbox.yml.j2
+    dest: /etc/prometheus/blackbox.yml
+    mode: '0644'
+    validate: /usr/bin/prometheus-blackbox-exporter --config.file=%s --config.check
+  notify: Restart Blackbox Exporter
+
+- name: Install validated alert rules
+  ansible.builtin.copy:
+    src: otus-alerts.yml
+    dest: /etc/prometheus/otus-alerts.yml
+    mode: '0644'
+    validate: /usr/bin/promtool check rules %s
+  notify: Restart Prometheus
+
+- name: Configure scrape jobs and Alertmanager
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    mode: '0644'
+    validate: /usr/bin/promtool check config %s
+  notify: Restart Prometheus
+
+- name: Install ntfy and its publisher credentials
+  ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/install-ntfy.yml"
+
+- name: Create the Alertmanager UI directory
+  ansible.builtin.file:
+    path: "{{ alertmanager_ui_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Extract the Alertmanager UI from the guest cache
+  ansible.builtin.unarchive:
+    src: "{{ external_package_cache }}/{{ alertmanager_ui_archive }}"
+    dest: "{{ alertmanager_ui_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    creates: "{{ alertmanager_ui_path }}/script.js"
+  register: alertmanager_ui
+
+- name: Configure Alertmanager to publish directly to ntfy
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: /etc/prometheus/otus-alertmanager.yml
+    mode: '0644'
+    validate: /usr/bin/amtool check-config %s
+  notify: Restart Alertmanager
+
+- name: Bind monitoring services to protected addresses and limit retention
+  ansible.builtin.copy:
+    dest: "/etc/default/{{ item.service }}"
+    content: |
+      ARGS="{{ item.args }}"
+    mode: '0644'
+  loop:
+    - service: prometheus
+      args: >-
+        --config.file=/etc/prometheus/prometheus.yml --web.listen-address={{ internal_ip }}:9090
+        --web.external-url={{ monitoring_web_url }}/prometheus/ --web.route-prefix=/
+        --storage.tsdb.path=/var/lib/prometheus/metrics2
+        --storage.tsdb.retention.time=7d --storage.tsdb.retention.size=2GB
+    - service: prometheus-blackbox-exporter
+      args: --config.file=/etc/prometheus/blackbox.yml --web.listen-address=127.0.0.1:9115
+    - service: prometheus-alertmanager
+      args: >-
+        --config.file=/etc/prometheus/otus-alertmanager.yml --web.listen-address={{ internal_ip }}:9093
+        --web.external-url={{ monitoring_web_url }}/alertmanager/ --web.route-prefix=/
+        --web.ui-path={{ alertmanager_ui_path }}
+        --cluster.listen-address= --storage.path=/var/lib/prometheus/alertmanager
+  loop_control:
+    label: "{{ item.service }}"
+  register: monitoring_defaults
+
+- name: Enable and start monitoring services
+  ansible.builtin.systemd_service:
+    name: "{{ item.item.service }}"
+    enabled: true
+    daemon_reload: "{{ monitoring_firewall_dependencies.changed }}"
+    state: >-
+      {{ 'restarted' if item.changed or (item.item.service == 'prometheus-alertmanager' and alertmanager_ui is changed) else 'started' }}
+  loop: "{{ monitoring_defaults.results }}"
+  loop_control:
+    label: "{{ item.item.service }}"

@@ -1,0 +1,44 @@
+---
+- name: Read the cluster configuration
+  ansible.builtin.command: crm configure show
+  register: redis_cib
+  changed_when: false
+  check_mode: false
+
+- name: Check whether DRBD is mounted locally
+  ansible.builtin.command: findmnt --noheadings --mountpoint {{ project_storage_path }} --output SOURCE
+  register: redis_mount
+  changed_when: false
+  failed_when: redis_mount.rc not in [0, 1] or redis_mount.stdout not in ['', '/dev/drbd0']
+  check_mode: false
+
+- name: Set ownership on the shared Redis data
+  when: redis_mount.stdout == '/dev/drbd0'
+  block:
+    - name: Keep the Redis data directory private
+      ansible.builtin.file:
+        path: "{{ project_redis_path }}"
+        state: directory
+        mode: '0700'
+
+    - name: Assign the shared directory and AOF files to Redis
+      ansible.builtin.file:
+        path: "{{ project_redis_path }}"
+        state: directory
+        owner: redis
+        group: redis
+        recurse: true
+        follow: false
+
+- name: Save the Redis resource and storage dependencies
+  ansible.builtin.template:
+    src: redis.crm.j2
+    dest: /etc/corosync/otus-redis.crm
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Register Redis in Pacemaker
+  ansible.builtin.command: crm --wait configure load update /etc/corosync/otus-redis.crm
+  when: "'primitive p_redis ' not in redis_cib.stdout"
+  changed_when: true

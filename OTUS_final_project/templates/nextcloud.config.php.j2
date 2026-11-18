@@ -1,0 +1,26 @@
+<?php
+$CONFIG = [
+    'dbhost' => 'localhost',
+    'trusted_domains' => ['{{ project_domain }}'],
+    'trusted_proxies' => ['{{ hostvars[groups['proxies'][0]].internal_ip }}'],
+    'overwritehost' => '{{ project_domain }}',
+    'overwriteprotocol' => 'https',
+    'overwrite.cli.url' => 'https://{{ project_domain }}',
+    'htaccess.RewriteBase' => '/',
+    'default_phone_region' => 'RU',
+    'maintenance_window_start' => 1,
+    'memcache.local' => '\OC\Memcache\APCu',
+    'memcache.distributed' => '\OC\Memcache\Redis',
+    'memcache.locking' => '\OC\Memcache\Redis',
+    'redis' => [
+        'host' => '{{ project_service_vip }}',
+        'port' => 6379,
+        'password' => '{{ vault_redis_password }}',
+        'dbindex' => 0,
+        'timeout' => 2.5,
+        'read_timeout' => 2.5,
+    ],
+    'appstoreenabled' => false,
+    'upgrade.disable-web' => true,
+    'config_is_read_only' => true,
+];

@@ -1,0 +1,33 @@
+---
+- name: Require a database password safe for the SQL account statements
+  ansible.builtin.assert:
+    that: vault_database_password is match('^[A-Za-z0-9_-]+$')
+  no_log: true
+
+- name: Check the local Nextcloud database account
+  ansible.builtin.command: mariadb --batch --skip-column-names
+  args:
+    stdin: |
+      SELECT COUNT(*) FROM mysql.user AS account
+      WHERE account.User='{{ nextcloud_database_user }}' AND account.Host='localhost'
+        AND account.plugin='mysql_native_password'
+        AND account.authentication_string=PASSWORD('{{ vault_database_password }}')
+        AND EXISTS (
+          SELECT 1 FROM information_schema.SCHEMA_PRIVILEGES
+          WHERE GRANTEE=CONCAT(QUOTE(account.User), '@', QUOTE(account.Host))
+            AND TABLE_SCHEMA='{{ nextcloud_database }}' AND PRIVILEGE_TYPE='ALTER'
+        );
+  register: nextcloud_sql_account
+  changed_when: false
+  no_log: true
+
+- name: Grant Nextcloud access through the local MariaDB socket
+  ansible.builtin.command: mariadb
+  args:
+    stdin: |
+      CREATE USER IF NOT EXISTS '{{ nextcloud_database_user }}'@'localhost' IDENTIFIED BY '{{ vault_database_password }}';
+      ALTER USER '{{ nextcloud_database_user }}'@'localhost' IDENTIFIED BY '{{ vault_database_password }}';
+      GRANT ALL PRIVILEGES ON {{ nextcloud_database }}.* TO '{{ nextcloud_database_user }}'@'localhost';
+  when: nextcloud_sql_account.stdout != '1'
+  changed_when: true
+  no_log: true

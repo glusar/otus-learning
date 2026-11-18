@@ -1,0 +1,15 @@
+---
+- name: Require two synced databases and the arbitrator
+  ansible.builtin.command: >-
+    mariadb --batch --skip-column-names -e
+    "SHOW GLOBAL STATUS WHERE Variable_name IN ('wsrep_cluster_size','wsrep_cluster_status','wsrep_local_state_comment','wsrep_ready')"
+  register: galera_cluster_ready
+  changed_when: false
+  retries: 60
+  delay: 3
+  until:
+    - galera_cluster_ready.rc == 0
+    - "galera_cluster_ready.stdout is search('wsrep_cluster_size\\s+3')"
+    - "galera_cluster_ready.stdout is search('wsrep_cluster_status\\s+Primary')"
+    - "galera_cluster_ready.stdout is search('wsrep_local_state_comment\\s+Synced')"
+    - "galera_cluster_ready.stdout is search('wsrep_ready\\s+ON')"

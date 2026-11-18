@@ -1,0 +1,48 @@
+---
+- name: Install DRBD
+  ansible.builtin.apt:
+    name: drbd-utils
+    state: present
+    policy_rc_d: 101
+
+- name: Disable automatic resource startup outside Pacemaker
+  ansible.builtin.systemd_service:
+    name: drbd
+    enabled: false
+    masked: true
+
+- name: Check whether the DRBD module is loaded
+  ansible.builtin.stat:
+    path: /sys/module/drbd
+  register: drbd_module
+
+- name: Load the DRBD module
+  ansible.builtin.command: modprobe drbd
+  when: not drbd_module.stat.exists
+  changed_when: true
+
+- name: Configure the replicated device
+  ansible.builtin.template:
+    src: ncdata.res.j2
+    dest: "/etc/drbd.d/{{ drbd_resource }}.res"
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/drbdadm -c %s dump
+
+- name: Initialize DRBD metadata on an empty disk
+  ansible.builtin.command: drbdadm create-md {{ drbd_resource }}
+  args:
+    stdin: "yes"
+  when: drbd_signatures.stdout | trim == ''
+  changed_when: true
+
+- name: Find pending DRBD configuration changes
+  ansible.builtin.command: drbdadm --dry-run adjust {{ drbd_resource }}
+  register: drbd_adjust
+  changed_when: false
+
+- name: Apply DRBD configuration changes
+  ansible.builtin.command: drbdadm adjust {{ drbd_resource }}
+  when: drbd_adjust.stdout | trim != ''
+  changed_when: true

@@ -1,0 +1,92 @@
+---
+- name: Install SBD and Pacemaker
+  ansible.builtin.apt:
+    name:
+      - sbd
+      - pacemaker
+      - crmsh
+    state: present
+    policy_rc_d: 101
+
+- name: Configure the watchdog and diskless SBD
+  ansible.builtin.copy:
+    dest: /etc/default/sbd
+    content: |
+      SBD_DEVICE=""
+      SBD_PACEMAKER=yes
+      SBD_STARTMODE=always
+      SBD_WATCHDOG_DEV=/dev/watchdog0
+      SBD_WATCHDOG_TIMEOUT=40
+      SBD_DELAY_START={{ sbd_start_delay_seconds }}
+      SBD_TIMEOUT_ACTION=flush,reboot
+      SBD_SYNC_RESOURCE_STARTUP=yes
+      SBD_OPTS=""
+    owner: root
+    group: root
+    mode: '0644'
+  register: sbd_config
+
+- name: Create the SBD service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/sbd.service.d
+    state: directory
+    mode: '0755'
+
+- name: Set the SBD startup timeout and driver dependency
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/sbd.service.d/otus.conf
+    content: |
+      [Unit]
+      Requires=otus-watchdog.service
+      After=otus-watchdog.service
+
+      [Service]
+      TimeoutStartSec=180
+    owner: root
+    group: root
+    mode: '0644'
+  register: sbd_override
+
+- name: Create the Corosync service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/corosync.service.d
+    state: directory
+    mode: '0755'
+
+# SBD waits for Corosync when starting in diskless mode. Delay the
+# Corosync process without ordering it after the SBD service.
+- name: Delay Corosync membership while the returning node starts SBD
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/corosync.service.d/otus-rejoin-delay.conf
+    content: |
+      [Service]
+      ExecStartPre=/usr/bin/sleep {{ sbd_start_delay_seconds }}
+      TimeoutStartSec=180
+    owner: root
+    group: root
+    mode: '0644'
+  register: corosync_rejoin_override
+
+- name: Enable SBD as a dependency of the cluster services
+  ansible.builtin.systemd_service:
+    name: sbd
+    daemon_reload: "{{ sbd_override.changed or corosync_rejoin_override.changed }}"
+    enabled: true
+
+# A unit ordering change takes effect on the next start after daemon-reload.
+- name: Ensure Corosync is running with the configured SBD settings
+  ansible.builtin.systemd_service:
+    name: corosync
+    state: "{{ 'restarted' if sbd_config.changed else 'started' }}"
+
+- name: Start the quorum client
+  ansible.builtin.systemd_service:
+    name: corosync-qdevice
+    enabled: true
+    state: started
+
+- name: Enable Pacemaker
+  ansible.builtin.systemd_service:
+    name: pacemaker
+    enabled: true
+    state: started

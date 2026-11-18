@@ -1,0 +1,11 @@
+add table inet otus_logging
+delete table inet otus_logging
+table inet otus_logging {
+    chain input {
+        type filter hook input priority filter; policy accept;
+        iifname "lo" accept
+        ip saddr { {{ groups['nextcloud'] | difference(groups['monitoring']) | sort | map('extract', hostvars, 'internal_ip') | join(', ') }} } ip daddr {{ internal_ip }} tcp dport {{ logging_relp_port }} accept
+        tcp dport {{ logging_relp_port }} limit rate 6/minute burst 10 packets log prefix "otus-logging input drop: "
+        tcp dport {{ logging_relp_port }} drop
+    }
+}

@@ -1,0 +1,118 @@
+---
+- name: Install Nginx and certificate tools
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - openssl
+    state: present
+    policy_rc_d: 101
+
+- name: Create the private TLS directory
+  ansible.builtin.file:
+    path: /etc/nginx/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Check for a saved TLS identity on the controller
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/.secrets/nextcloud.key"
+    get_checksum: false
+  delegate_to: localhost
+  become: false
+  register: saved_proxy_key
+
+- name: Check for the current private key
+  ansible.builtin.stat:
+    path: /etc/nginx/ssl/nextcloud.key
+    get_checksum: false
+  register: proxy_key
+
+- name: Restore the saved TLS identity on a new proxy
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/.secrets/nextcloud.{{ item }}"
+    dest: "/etc/nginx/ssl/nextcloud.{{ item }}"
+    owner: root
+    group: root
+    mode: "{{ '0600' if item == 'key' else '0644' }}"
+  loop: [key, crt]
+  when: saved_proxy_key.stat.exists and not proxy_key.stat.exists
+  no_log: true
+
+- name: Create the persistent TLS key only if absent
+  ansible.builtin.command: >-
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /etc/nginx/ssl/nextcloud.key
+  args:
+    creates: /etc/nginx/ssl/nextcloud.key
+  no_log: true
+
+- name: Protect the TLS key
+  ansible.builtin.file:
+    path: /etc/nginx/ssl/nextcloud.key
+    mode: '0600'
+
+- name: Create the self-signed server certificate only if absent
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -new
+      - -x509
+      - -key
+      - /etc/nginx/ssl/nextcloud.key
+      - -out
+      - /etc/nginx/ssl/nextcloud.crt
+      - -days
+      - '365'
+      - -subj
+      - "/CN={{ project_domain }}"
+      - -addext
+      - "subjectAltName=DNS:{{ project_domain }},IP:{{ dmz_ip }},IP:{{ internal_ip }}"
+  args:
+    creates: /etc/nginx/ssl/nextcloud.crt
+
+- name: Preserve the public certificate on the controller
+  ansible.builtin.fetch:
+    src: /etc/nginx/ssl/nextcloud.crt
+    dest: "{{ playbook_dir }}/.secrets/nextcloud.crt"
+    flat: true
+
+- name: Read the active proxy key for disaster recovery
+  ansible.builtin.slurp:
+    src: /etc/nginx/ssl/nextcloud.key
+  register: proxy_key_backup
+  no_log: true
+
+- name: Preserve the proxy private key with restricted access
+  ansible.builtin.copy:
+    dest: "{{ playbook_dir }}/.secrets/nextcloud.key"
+    content: "{{ proxy_key_backup.content | b64decode }}"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  no_log: true
+  diff: false
+
+- name: Remove the unused Nginx default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload Nginx
+
+- name: Configure HTTPS and the two Apache upstreams
+  ansible.builtin.template:
+    src: nextcloud-proxy.conf.j2
+    dest: /etc/nginx/sites-available/nextcloud
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload Nginx
+
+- name: Enable the Nextcloud proxy site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/nextcloud
+    dest: /etc/nginx/sites-enabled/nextcloud
+    state: link
+  notify: Reload Nginx
+

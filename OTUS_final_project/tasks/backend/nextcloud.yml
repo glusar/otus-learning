@@ -1,0 +1,70 @@
+---
+- name: Distribute the shared instance configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/.secrets/nextcloud-config.php"
+    dest: "{{ nextcloud_path }}/config/config.php"
+    owner: www-data
+    group: www-data
+    mode: '0440'
+    validate: /usr/bin/php8.3 -l %s
+  no_log: true
+
+- name: Configure the local database, Redis and proxy trust
+  ansible.builtin.template:
+    src: nextcloud.config.php.j2
+    dest: "{{ nextcloud_path }}/config/otus.config.php"
+    owner: root
+    group: www-data
+    mode: '0640'
+    validate: /usr/bin/php8.3 -l %s
+  no_log: true
+  notify: Reload Nextcloud PHP configuration
+
+- name: Protect the installed configuration directory
+  ansible.builtin.file:
+    path: "{{ nextcloud_path }}/config"
+    state: directory
+    owner: root
+    group: www-data
+    mode: '0750'
+
+- name: Check the managed rewrite base in the distributed htaccess
+  ansible.builtin.command: grep -Eq '^[[:space:]]*RewriteBase /[[:space:]]*$' {{ nextcloud_path }}/.htaccess
+  register: nextcloud_rewrite_base
+  changed_when: false
+  failed_when: nextcloud_rewrite_base.rc not in [0, 1]
+
+- name: Generate the application rewrite rules and protect them again
+  when: nextcloud_rewrite_base.rc == 1
+  block:
+    - name: Allow the application CLI to update its rewrite rules
+      ansible.builtin.file:
+        path: "{{ nextcloud_path }}/.htaccess"
+        group: www-data
+        mode: '0664'
+
+    - name: Generate the canonical Nextcloud rewrite rules
+      ansible.builtin.command: runuser -u www-data -- php8.3 {{ nextcloud_path }}/occ maintenance:update:htaccess
+      changed_when: true
+
+  always:
+    - name: Protect the generated rewrite file from runtime changes
+      ansible.builtin.file:
+        path: "{{ nextcloud_path }}/.htaccess"
+        owner: root
+        group: www-data
+        mode: '0644'
+
+- name: Read the current background job mode
+  ansible.builtin.command: runuser -u www-data -- php8.3 {{ nextcloud_path }}/occ config:app:get core backgroundjobs_mode
+  register: nextcloud_job_mode
+  changed_when: false
+  failed_when: >-
+    nextcloud_job_mode.rc != 0 and not
+    (nextcloud_job_mode.rc == 1 and nextcloud_job_mode.stdout == '' and nextcloud_job_mode.stderr == '')
+
+- name: Select system cron background processing
+  ansible.builtin.command: runuser -u www-data -- php8.3 {{ nextcloud_path }}/occ background:cron
+  when: nextcloud_job_mode.stdout != 'cron'
+  changed_when: true
+

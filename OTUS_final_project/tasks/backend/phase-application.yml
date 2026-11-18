@@ -1,0 +1,18 @@
+---
+- ansible.builtin.import_tasks: "fencing.yml"
+- ansible.builtin.import_tasks: "drbd-cluster.yml"
+- ansible.builtin.import_tasks: "nfs.yml"
+- ansible.builtin.import_tasks: "redis.yml"
+- ansible.builtin.import_tasks: "runtime.yml"
+- ansible.builtin.import_tasks: "nextcloud-init.yml"
+  when:
+    - inventory_hostname == 'backend1'
+    - otus_initialize | default(false) | bool
+- ansible.builtin.import_tasks: "nextcloud.yml"
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/nextcloud-trust.yml"
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/forward-logs.yml"
+- ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/node-exporter.yml"
+- ansible.builtin.import_tasks: monitoring.yml
+- ansible.builtin.import_tasks: "cron.yml"
+- ansible.builtin.import_tasks: "backup.yml"
+- ansible.builtin.meta: flush_handlers

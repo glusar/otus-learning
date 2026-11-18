@@ -1,0 +1,11 @@
+---
+- name: Detect whether Pacemaker already manages the backup timer
+  ansible.builtin.command: crm configure show p_nextcloud_backup
+  register: backup_resource
+  changed_when: false
+  failed_when: backup_resource.rc not in [0, 1]
+
+- name: Register the backup timer with Pacemaker
+  ansible.builtin.command: crm --wait configure load update /etc/corosync/otus-backup.crm
+  when: backup_resource.rc != 0
+  changed_when: true

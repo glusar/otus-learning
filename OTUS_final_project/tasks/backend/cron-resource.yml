@@ -1,0 +1,15 @@
+---
+- name: Read the current cluster configuration before registering the scheduler
+  ansible.builtin.command: crm configure show
+  register: nextcloud_cron_cib
+  changed_when: false
+
+- name: Register the cluster-managed scheduler
+  ansible.builtin.command: crm --wait configure load update /etc/corosync/otus-nextcloud-cron.crm
+  when: "'primitive p_nextcloud_cron ' not in nextcloud_cron_cib.stdout"
+  changed_when: true
+
+- name: Start the cron resource after a planned shutdown
+  ansible.builtin.command: crm --wait resource start p_nextcloud_cron
+  when: nextcloud_cron_cib.stdout is search('(?ms)^primitive p_nextcloud_cron (?:(?!\n\S).)*target-role="?Stopped"?')
+  changed_when: true

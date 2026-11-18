@@ -1,0 +1,116 @@
+---
+- name: Install the receiver dependencies
+  ansible.builtin.apt:
+    name: [rsyslog, rsyslog-relp, logrotate, nftables]
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the local directory for received journals
+  ansible.builtin.file:
+    path: "{{ logging_directory }}"
+    state: directory
+    owner: syslog
+    group: adm
+    mode: '0750'
+
+- name: Configure the firewall for the internal RELP listener
+  ansible.builtin.template:
+    src: central-logging.nft.j2
+    dest: /etc/otus-logging.nft
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/nft -c -f %s
+  register: logging_firewall_rules
+
+- name: Install the firewall service for the log receiver
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/otus-logging-firewall.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Restrict the OTUS RELP log receiver
+      Before=rsyslog.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/otus-logging.nft
+      ExecReload=/usr/sbin/nft -f /etc/otus-logging.nft
+
+      [Install]
+      WantedBy=multi-user.target
+  register: logging_firewall_unit
+
+- name: Enable the firewall before starting the listener
+  ansible.builtin.systemd_service:
+    name: otus-logging-firewall
+    daemon_reload: "{{ logging_firewall_unit.changed }}"
+    enabled: true
+    state: "{{ 'reloaded' if logging_firewall_rules.changed else 'started' }}"
+
+- name: Create the rsyslog service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/rsyslog.service.d
+    state: directory
+    mode: '0755'
+
+- name: Order rsyslog after the internal address and firewall
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/rsyslog.service.d/otus-logging.conf
+    mode: '0644'
+    content: |
+      [Unit]
+      Requires=otus-logging-firewall.service
+      Wants=network-online.target
+      After=network-online.target otus-logging-firewall.service
+  register: logging_receiver_override
+
+- name: Configure central log retention and compression
+  ansible.builtin.template:
+    src: central-logging-logrotate.conf.j2
+    dest: /etc/otus-logging-logrotate.conf
+    mode: '0644'
+    validate: /usr/sbin/logrotate --debug %s
+
+- name: Install the timer and service that enforce central log rotation
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/otus-logging-rotate.{{ item.type }}"
+    content: "{{ item.content }}"
+    mode: '0644'
+  loop:
+    - type: service
+      content: |
+        [Unit]
+        Description=Rotate central OTUS logs
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/sbin/logrotate --state /var/lib/logrotate/otus-logging.status /etc/otus-logging-logrotate.conf
+    - type: timer
+      content: |
+        [Unit]
+        Description=Check central OTUS log rotation every five minutes
+
+        [Timer]
+        OnCalendar=*:0/5
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.type }}"
+  register: logging_rotate_units
+
+- name: Enable central log rotation
+  ansible.builtin.systemd_service:
+    name: otus-logging-rotate.timer
+    daemon_reload: "{{ logging_rotate_units.changed or logging_receiver_override.changed }}"
+    enabled: true
+    state: "{{ 'restarted' if logging_rotate_units.changed else 'started' }}"
+
+- name: Apply the receiver configuration
+  ansible.builtin.import_tasks: "{{ playbook_dir }}/tasks/apply-rsyslog.yml"
+

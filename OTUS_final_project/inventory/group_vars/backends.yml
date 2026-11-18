@@ -1,0 +1,19 @@
+---
+drbd_resource: ncdata
+drbd_disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2
+drbd_port: 7789
+galera_disk: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1
+sbd_start_delay_seconds: 90
+# Redis reads the same AOF files on both VMs.
+redis_uid: 6379
+redis_gid: 6379
+backup_receiver_ip: "{{ hostvars[groups['monitoring'][0]].internal_ip }}"
+logging_backend_files:
+  - {path: /var/log/apache2/access.log, tag: apache-access, severity: info}
+  - {path: /var/log/apache2/other_vhosts_access.log, tag: apache-access, severity: info}
+  - {path: /var/log/apache2/error.log, tag: apache-error, severity: error}
+  - {path: /var/log/apache2/nextcloud-access.log, tag: nextcloud-apache-access, severity: info}
+  - {path: /var/log/apache2/nextcloud-error.log, tag: nextcloud-apache-error, severity: error}
+  - {path: /var/log/php8.3-fpm.log, tag: php-fpm, severity: info}
+  - {path: /var/log/crmsh/crmsh.log, tag: crmsh, severity: info}
+logging_file_sources: "{{ logging_backend_files }}"

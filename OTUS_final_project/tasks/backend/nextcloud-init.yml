@@ -1,0 +1,76 @@
+---
+- name: Read the installed flag without exposing the configuration
+  ansible.builtin.command:
+    argv:
+      - php8.3
+      - -r
+      - "$CONFIG=[]; if (file_exists('{{ nextcloud_path }}/config/config.php')) require '{{ nextcloud_path }}/config/config.php'; echo !empty($CONFIG['installed']) ? 'yes' : 'no';"
+  register: nextcloud_installed
+  changed_when: false
+
+- name: Check whether the application database exists
+  ansible.builtin.command: >-
+    mariadb --batch --skip-column-names -e
+    "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='{{ nextcloud_database }}'"
+  register: nextcloud_database_exists
+  changed_when: false
+
+- name: Create the application database without replacing existing data
+  ansible.builtin.command: >-
+    mariadb -e "CREATE DATABASE {{ nextcloud_database }} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
+  when: nextcloud_database_exists.stdout == '0'
+  changed_when: true
+
+- name: Allow the first installer to create its configuration
+  ansible.builtin.file:
+    path: "{{ nextcloud_path }}/config"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0750'
+  when: nextcloud_installed.stdout == 'no'
+
+- name: Install the CLI wrapper that reads credentials from the environment
+  ansible.builtin.copy:
+    src: install-nextcloud.php
+    dest: /usr/local/lib/otus-install-nextcloud.php
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/bin/php8.3 -l %s
+
+- name: Install the shared instance exactly once
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/runuser
+      - -u
+      - www-data
+      - --
+      - /usr/bin/php8.3
+      - /usr/local/lib/otus-install-nextcloud.php
+      - "{{ nextcloud_path }}"
+      - "{{ nextcloud_data_path }}"
+      - localhost
+      - "{{ nextcloud_database }}"
+      - "{{ nextcloud_database_user }}"
+      - "{{ nextcloud_admin_user }}"
+  environment:
+    OTUS_DATABASE_PASSWORD: "{{ vault_database_password }}"
+    OTUS_ADMIN_PASSWORD: "{{ vault_nextcloud_admin_password }}"
+  when: nextcloud_installed.stdout == 'no'
+  no_log: true
+  changed_when: true
+
+- name: Preserve the installed instance identity on the controller
+  ansible.builtin.fetch:
+    src: "{{ nextcloud_path }}/config/config.php"
+    dest: "{{ playbook_dir }}/.secrets/nextcloud-config.php"
+    flat: true
+  no_log: true
+
+- name: Protect the local configuration copy
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/.secrets/nextcloud-config.php"
+    mode: '0600'
+  delegate_to: localhost
+  become: false

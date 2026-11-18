@@ -1,0 +1,438 @@
+{
+  "uid": "otus-nextcloud-health",
+  "title": "OTUS Nextcloud",
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "otus",
+    "nextcloud"
+  ],
+  "panels": [
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Владелец хранилища",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) ((ha_cluster_pacemaker_resources{job=\"ha-cluster\",resource=\"p_storage_vip\",role=\"started\",status=\"active\"} == 1) and on (instance) (ha_cluster_corosync_quorate{job=\"ha-cluster\"} == 1))",
+          "legendFormat": "{{node}}",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Голоса Corosync",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(ha_cluster_corosync_quorum_votes{job=\"ha-cluster\",type=\"total_votes\"})",
+          "legendFormat": "Получено",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "max(ha_cluster_corosync_quorum_votes{job=\"ha-cluster\",type=\"quorum\"})",
+          "legendFormat": "Порог",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Кворум Corosync",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Нет",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Есть",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "auto",
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(ha_cluster_corosync_quorate{job=\"ha-cluster\"})",
+          "legendFormat": "Кворум",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "MariaDB готова к записи",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Не готова",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Готова",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value_and_name",
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((mysql_up{job=\"mariadb\"} == bool 1) * on (instance) (mysql_global_status_wsrep_ready{job=\"mariadb\"} == bool 1) * on (instance) (mysql_global_status_wsrep_local_state{job=\"mariadb\"} == bool 4) * on (instance) (mysql_global_variables_read_only{job=\"mariadb\"} == bool 0)) or on (instance) (0 * up{job=\"mariadb\"})",
+          "legendFormat": "{{instance}}",
+          "instant": true,
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Доступность HTTPS и портов",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "probe_success{job=~\"nextcloud-https|storage-tcp\"}",
+          "legendFormat": "{{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Загрузка CPU",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])))",
+          "legendFormat": "{{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Свободная память",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes",
+          "legendFormat": "{{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Свободное место",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{mountpoint=~\"/|/srv/ncdata|/var/lib/mysql\"}",
+          "legendFormat": "{{instance}} {{mountpoint}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Активные оповещения",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otus-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by(alertname, alertstate)(ALERTS)",
+          "legendFormat": "{{alertname}} ({{alertstate}})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otus-prometheus"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+---
+- name: Install Apache, PHP 8.3 and Nextcloud dependencies
+  ansible.builtin.apt:
+    name:
+      - apache2
+      - php8.3-fpm
+      - php8.3-cli
+      - php8.3-mysql
+      - php8.3-curl
+      - php8.3-gd
+      - php8.3-mbstring
+      - php8.3-intl
+      - php8.3-bcmath
+      - php8.3-gmp
+      - php8.3-xml
+      - php8.3-zip
+      - php8.3-apcu
+      - php8.3-redis
+      - php8.3-imagick
+      - nfs-common
+      - bzip2
+    state: present
+    policy_rc_d: 101
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure the shared data mount
+  tags: nfs_mount
+  block:
+    - name: Read the current Nextcloud data mount
+      ansible.builtin.command: findmnt --noheadings --mountpoint {{ nextcloud_data_path }} --output SOURCE,FSTYPE
+      register: nextcloud_mount
+      changed_when: false
+      failed_when: >-
+        nextcloud_mount.rc not in [0, 1] or
+        (nextcloud_mount.rc == 0 and
+         nextcloud_mount.stdout.split() != [project_service_vip ~ ':' ~ project_nfs_export, 'nfs4'])
+      check_mode: false
+
+    - name: Protect files already present in an unmounted local data directory
+      ansible.builtin.command: find {{ nextcloud_data_path }} -mindepth 1 -maxdepth 1 -print -quit
+      when: nextcloud_mount.rc == 1
+      register: nextcloud_local_data
+      changed_when: false
+      failed_when: nextcloud_local_data.stdout != '' or nextcloud_local_data.rc not in [0, 1]
+      check_mode: false
+
+    - name: Protect the empty local mount point from application writes
+      ansible.builtin.file:
+        path: "{{ nextcloud_data_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0000'
+      when: nextcloud_mount.rc == 1
+
+    - name: Determine the native mount unit name
+      ansible.builtin.command: systemd-escape --path --suffix=mount {{ nextcloud_data_path }}
+      register: nextcloud_mount_unit
+      changed_when: false
+      check_mode: false
+
+    # fstab-generator may stat an unavailable hard NFS mount during daemon-reload.
+    # A native unit avoids that lookup while preserving the existing live mount.
+    - name: Persist the shared data as a native systemd mount
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ nextcloud_mount_unit.stdout }}"
+        content: |
+          [Unit]
+          Description=Shared Nextcloud data over NFSv4
+          [Mount]
+          What={{ project_service_vip }}:{{ project_nfs_export }}
+          Where={{ nextcloud_data_path }}
+          Type=nfs4
+          Options=rw,vers=4.1,proto=tcp,hard,timeo=50,retrans=2,_netdev
+          TimeoutSec=300s
+          [Install]
+          WantedBy=remote-fs.target
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Validate the native mount unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - "/etc/systemd/system/{{ nextcloud_mount_unit.stdout }}"
+      changed_when: false
+
+    - name: Load and enable the shared Nextcloud data mount
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        name: "{{ nextcloud_mount_unit.stdout }}"
+        enabled: true
+        state: started
+
+- name: Install Nextcloud code from the guest cache
+  ansible.builtin.unarchive:
+    src: "{{ external_package_cache }}/nextcloud-{{ nextcloud_version }}.tar.bz2"
+    dest: /var/www
+    remote_src: true
+    owner: root
+    group: www-data
+    creates: "{{ nextcloud_path }}/version.php"
+
+- name: Require the pinned application version without performing an implicit upgrade
+  ansible.builtin.command:
+    argv:
+      - php8.3
+      - -r
+      - "require '{{ nextcloud_path }}/version.php'; echo $OC_VersionString;"
+  register: nextcloud_code_version
+  changed_when: false
+  failed_when: nextcloud_code_version.rc != 0 or nextcloud_code_version.stdout != nextcloud_version
+
+- name: Configure shared PHP sessions and runtime settings
+  ansible.builtin.template:
+    src: nextcloud-php.ini.j2
+    dest: "/etc/php/8.3/{{ item }}/conf.d/90-otus.ini"
+    owner: root
+    group: www-data
+    mode: '0640'
+    validate: >-
+      /usr/bin/php8.3 -r 'exit(parse_ini_file($argv[1], false, INI_SCANNER_RAW) === false ? 1 : 0);' %s
+  loop:
+    - cli
+    - fpm
+  no_log: true
+  notify: Restart PHP-FPM
+
+- name: Remove the unused default PHP-FPM pool
+  ansible.builtin.file:
+    path: /etc/php/8.3/fpm/pool.d/www.conf
+    state: absent
+  notify: Restart PHP-FPM
+
+- name: Configure the Nextcloud PHP-FPM pool
+  ansible.builtin.template:
+    src: nextcloud-fpm.conf.j2
+    dest: /etc/php/8.3/fpm/pool.d/nextcloud.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart PHP-FPM
+
+- name: Create the PHP-FPM systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/php8.3-fpm.service.d
+    state: directory
+    mode: '0755'
+
+- name: Require the NFS mount before PHP-FPM startup
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/php8.3-fpm.service.d/otus-storage.conf
+    content: |
+      [Unit]
+      RequiresMountsFor={{ nextcloud_data_path }}
+      [Service]
+      ExecStartPre=/usr/bin/findmnt --noheadings --mountpoint {{ nextcloud_data_path }} --types nfs4
+    owner: root
+    group: root
+    mode: '0644'
+  register: nextcloud_fpm_unit
+  notify: Restart PHP-FPM
+
+- name: Reload the changed PHP service definition
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: nextcloud_fpm_unit.changed
+
+- name: Bind Apache only to the internal address
+  ansible.builtin.copy:
+    dest: /etc/apache2/ports.conf
+    content: "Listen {{ internal_ip }}:80\n"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Apache
+
+- name: Enable the Apache modules required by Nextcloud and PHP-FPM
+  ansible.builtin.command: a2enmod proxy proxy_fcgi setenvif rewrite headers env dir mime
+  register: nextcloud_apache_modules
+  changed_when: "'Enabling module' in nextcloud_apache_modules.stdout"
+  notify: Restart Apache
+
+- name: Disable the default Apache site
+  ansible.builtin.command: a2dissite 000-default
+  register: nextcloud_apache_default
+  changed_when: "'Disabling site' in nextcloud_apache_default.stdout"
+  notify: Restart Apache
+
+- name: Configure the Nextcloud virtual host
+  ansible.builtin.template:
+    src: nextcloud-apache.conf.j2
+    dest: /etc/apache2/sites-available/nextcloud.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Apache
+
+- name: Enable the Nextcloud virtual host
+  ansible.builtin.command: a2ensite nextcloud
+  register: nextcloud_apache_site
+  changed_when: "'Enabling site' in nextcloud_apache_site.stdout"
+  notify: Restart Apache
+
+- name: Validate Apache before starting or reloading it
+  ansible.builtin.command: apache2ctl configtest
+  changed_when: false
+
+- name: Validate PHP-FPM before starting or reloading it
+  ansible.builtin.command: php-fpm8.3 --test
+  changed_when: false
+
+- name: Enable PHP-FPM and Apache
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - php8.3-fpm
+    - apache2

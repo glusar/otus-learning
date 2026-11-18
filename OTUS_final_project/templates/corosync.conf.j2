@@ -1,0 +1,38 @@
+totem {
+    version: 2
+    cluster_name: {{ cluster_name }}
+    transport: knet
+    ip_version: ipv4
+    crypto_cipher: aes256
+    crypto_hash: sha256
+}
+
+nodelist {
+{% for host in groups['backends'] %}
+    node {
+        name: {{ hostvars[host].pve_name }}
+        nodeid: {{ loop.index }}
+        ring0_addr: {{ hostvars[host].internal_ip }}
+    }
+{% endfor %}
+}
+
+quorum {
+    provider: corosync_votequorum
+    wait_for_all: 1
+    device {
+        votes: 1
+        model: net
+        net {
+            host: {{ hostvars[groups['monitoring'][0]].internal_ip }}
+            algorithm: ffsplit
+            tls: off
+        }
+    }
+}
+
+logging {
+    to_syslog: yes
+    to_logfile: no
+    timestamp: on
+}

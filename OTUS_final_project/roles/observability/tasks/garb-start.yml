@@ -1,0 +1,6 @@
+---
+- name: Enable and start the Galera arbitrator
+  ansible.builtin.systemd_service:
+    name: garb
+    enabled: true
+    state: "{{ 'restarted' if garb_configuration.changed else 'started' }}"

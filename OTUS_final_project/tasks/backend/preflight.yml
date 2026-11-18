@@ -1,0 +1,42 @@
+---
+- name: Read the local database disk signature
+  ansible.builtin.command: "wipefs --no-act --noheadings --output TYPE {{ galera_disk }}"
+  register: backend_database_disk
+  changed_when: false
+  check_mode: false
+  failed_when: backend_database_disk.rc != 0 or backend_database_disk.stdout | trim not in ['', 'ext4']
+
+- name: Verify the saved instance identity is available for a replacement
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/.secrets/nextcloud-config.php"
+    get_checksum: false
+  delegate_to: localhost
+  become: false
+  register: backend_saved_identity
+  when: backend_database_disk.stdout | trim == ''
+
+- name: Require an appropriate instance identity before formatting a new disk
+  ansible.builtin.assert:
+    that:
+      - backend_saved_identity.stat.exists != (otus_initialize | default(false) | bool)
+    fail_msg: Preserve the saved identity for a replacement, or move it aside before initializing a different instance.
+  when: backend_database_disk.stdout | trim == ''
+
+- name: Require both backend roles when initializing a new cluster
+  ansible.builtin.assert:
+    that:
+      - groups['backends'] | difference(ansible_play_hosts_all) | length == 0
+      - backend_database_disk.stdout | trim == ''
+    fail_msg: otus_initialize=true requires both backends and empty database disks.
+  when: otus_initialize | default(false) | bool
+
+- name: Check the DRBD disk before preparing either filesystem
+  ansible.builtin.command: "wipefs --no-act --noheadings --output TYPE {{ drbd_disk }}"
+  register: drbd_signatures
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    drbd_signatures.rc != 0 or
+    (drbd_signatures.stdout_lines and 'drbd' not in drbd_signatures.stdout_lines) or
+    (drbd_signatures.stdout_lines | difference(['drbd', 'ext4']) | length > 0) or
+    (otus_initialize | default(false) | bool and drbd_signatures.stdout_lines | length > 0)

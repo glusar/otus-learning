@@ -1,0 +1,93 @@
+---
+- name: Read the current cluster configuration
+  ansible.builtin.command: crm configure show
+  register: nfs_cib
+  changed_when: false
+  check_mode: false
+
+- name: Find the DRBD Primary
+  ansible.builtin.command: drbdadm role {{ drbd_resource }}
+  register: nfs_drbd_role
+  changed_when: false
+  check_mode: false
+
+- name: Prepare the shared filesystem on the Primary
+  when: nfs_drbd_role.stdout == 'Primary/Secondary'
+  block:
+    - name: Read the filesystem type
+      ansible.builtin.command: blkid -p -s TYPE -o value /dev/drbd0
+      register: nfs_filesystem
+      changed_when: false
+      failed_when: >-
+        nfs_filesystem.rc not in [0, 2] or
+        nfs_filesystem.stdout not in ['', 'ext4'] or
+        (nfs_filesystem.stdout == '' and 'primitive p_ncfs ' in nfs_cib.stdout)
+      check_mode: false
+
+    - name: Create ext4 on the new empty replicated volume
+      ansible.builtin.command: mkfs.ext4 -m 1 -L ncdata /dev/drbd0
+      when: nfs_filesystem.stdout == ''
+      changed_when: true
+
+    - name: Read the current storage mount
+      ansible.builtin.command: findmnt --noheadings --mountpoint {{ project_storage_path }} --output SOURCE
+      register: nfs_current_mount
+      changed_when: false
+      failed_when: >-
+        nfs_current_mount.rc not in [0, 1] or
+        nfs_current_mount.stdout not in ['', '/dev/drbd0'] or
+        (nfs_current_mount.stdout == '' and 'primitive p_ncfs ' in nfs_cib.stdout)
+      check_mode: false
+
+    - name: Prepare directories before handing the filesystem to Pacemaker
+      block:
+        - name: Mount the filesystem for initial directory setup
+          ansible.builtin.command: mount /dev/drbd0 {{ project_storage_path }}
+          when:
+            - "'primitive p_ncfs ' not in nfs_cib.stdout"
+            - nfs_current_mount.stdout == ''
+          register: nfs_initial_mount
+          changed_when: true
+
+        - name: Create the Nextcloud data export
+          ansible.builtin.file:
+            path: "{{ project_nfs_export }}"
+            state: directory
+            owner: www-data
+            group: www-data
+            mode: '0750'
+
+        - name: Create the shared NFS state directory
+          ansible.builtin.file:
+            path: "{{ project_storage_path }}/.nfs-state"
+            state: directory
+            owner: root
+            group: root
+            mode: '0755'
+
+      always:
+        - name: Unmount the initial setup mount
+          ansible.builtin.command: umount {{ project_storage_path }}
+          when:
+            - "'primitive p_ncfs ' not in nfs_cib.stdout"
+            - nfs_current_mount.stdout == '/dev/drbd0' or nfs_initial_mount is changed
+          changed_when: true
+
+- name: Save the cluster storage resource definitions
+  ansible.builtin.template:
+    src: nfs.crm.j2
+    dest: /etc/corosync/otus-nfs.crm
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Register the storage resource group
+  ansible.builtin.command: crm --wait configure load update /etc/corosync/otus-nfs.crm
+  when: "'group g_storage ' not in nfs_cib.stdout"
+  changed_when: true
+
+- name: Wait for the shared storage endpoint before configuring its clients
+  ansible.builtin.wait_for:
+    host: "{{ project_service_vip }}"
+    port: 2049
+    timeout: 180

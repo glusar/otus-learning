@@ -1,0 +1,22 @@
+---
+- name: Verify the local database is synchronized
+  ansible.builtin.import_tasks: galera-verify.yml
+
+- name: Verify the local Nextcloud instance through the proxy network
+  ansible.builtin.uri:
+    url: "http://{{ internal_ip }}/status.php"
+    headers:
+      Host: "{{ project_domain }}"
+    use_proxy: false
+    return_content: true
+  delegate_to: "{{ groups['proxies'][0] }}"
+  become: false
+  register: backend_http
+  until:
+    - backend_http.status == 200
+    - backend_http.json.installed | default(false)
+    - not (backend_http.json.maintenance | default(true))
+    - not (backend_http.json.needsDbUpgrade | default(true))
+  retries: 12
+  delay: 5
+
